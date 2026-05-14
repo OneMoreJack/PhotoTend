@@ -9,6 +9,8 @@ class AlbumSummaryEntry {
     required this.videoCount,
     required this.knownSizeBytes,
     required this.hasUnknownSize,
+    this.coverMediaId,
+    this.previewMediaIds = const <String>[],
   });
 
   final String id;
@@ -18,6 +20,8 @@ class AlbumSummaryEntry {
   final int videoCount;
   final int knownSizeBytes;
   final bool hasUnknownSize;
+  final String? coverMediaId;
+  final List<String> previewMediaIds;
 
   int get totalCount => photoCount + videoCount;
   bool get hasMedia => totalCount > 0;

@@ -83,13 +83,6 @@ class _TrashPageState extends State<TrashPage> {
                         : Icons.select_all_outlined,
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Clear Trash',
-                  onPressed: _isDeleting || _controller.ids.isEmpty
-                      ? null
-                      : _deleteAllPermanently,
-                  icon: const Icon(Icons.delete_sweep_outlined),
-                ),
               ],
             ),
             body: Column(
@@ -106,94 +99,104 @@ class _TrashPageState extends State<TrashPage> {
                     ),
                   ),
                 Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 8,
-                          crossAxisSpacing: 8,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = (constraints.maxWidth / 150)
+                          .floor()
+                          .clamp(3, 7);
+                      return GridView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
-                    itemCount: _controller.ids.length,
-                    itemBuilder: (context, index) {
-                      final id = _controller.ids[index];
-                      final selected = _controller.selected.contains(id);
-                      return GestureDetector(
-                        key: Key('trash-grid-item-$id'),
-                        onTap: () => _controller.toggleSelection(id),
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: _buildGridPreview(id),
-                              ),
-                            ),
-                            if (_isVideo(id))
-                              const Positioned(
-                                left: 6,
-                                bottom: 6,
-                                child: Icon(
-                                  Icons.videocam,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            Positioned(
-                              right: 6,
-                              top: 6,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 120),
-                                width: 22,
-                                height: 22,
-                                decoration: BoxDecoration(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                        ),
+                        itemCount: _controller.ids.length,
+                        itemBuilder: (context, index) {
+                          final id = _controller.ids[index];
+                          final selected = _controller.selected.contains(id);
+                          return GestureDetector(
+                            key: Key('trash-grid-item-$id'),
+                            onTap: () => _controller.toggleSelection(id),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 140),
+                              curve: Curves.easeOutCubic,
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(13),
+                                border: Border.all(
                                   color: selected
                                       ? const Color(0xFF2A5BD7)
-                                      : const Color(0x70000000),
-                                  shape: BoxShape.circle,
+                                      : Colors.transparent,
+                                  width: 2,
                                 ),
-                                child: Icon(
-                                  selected ? Icons.check : Icons.add,
-                                  size: 14,
-                                  color: Colors.white,
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    _buildGridPreview(id),
+                                    AnimatedOpacity(
+                                      opacity: selected ? 1 : 0,
+                                      duration: const Duration(
+                                        milliseconds: 140,
+                                      ),
+                                      child: Container(
+                                        color: const Color(
+                                          0xFF2A5BD7,
+                                        ).withValues(alpha: 0.18),
+                                      ),
+                                    ),
+                                    if (_isVideo(id))
+                                      const Positioned(
+                                        left: 6,
+                                        bottom: 6,
+                                        child: Icon(
+                                          Icons.videocam,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    Positioned(
+                                      right: 6,
+                                      top: 6,
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 120,
+                                        ),
+                                        width: 22,
+                                        height: 22,
+                                        decoration: BoxDecoration(
+                                          color: selected
+                                              ? const Color(0xFF2A5BD7)
+                                              : const Color(0x70000000),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          selected ? Icons.check : Icons.add,
+                                          size: 14,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       );
                     },
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildBottomAction(
-                        icon: Icons.restore_from_trash_outlined,
-                        label: 'Restore Selected',
-                        onTap: _isDeleting ? null : _controller.restoreSelected,
-                      ),
-                      _buildBottomAction(
-                        icon: Icons.delete_forever_outlined,
-                        label: 'Delete Selected',
-                        onTap: _isDeleting || _controller.selected.isEmpty
-                            ? null
-                            : _deleteSelectedPermanently,
-                      ),
-                      _buildBottomAction(
-                        icon: Icons.delete_sweep_outlined,
-                        label: 'Empty Trash',
-                        onTap: _isDeleting || _controller.ids.isEmpty
-                            ? null
-                            : _deleteAllPermanently,
-                      ),
-                    ],
-                  ),
-                ),
+                _buildBottomBar(),
               ],
             ),
           ),
@@ -204,12 +207,6 @@ class _TrashPageState extends State<TrashPage> {
 
   Future<void> _deleteAllPermanently() async {
     if (_controller.ids.isEmpty) {
-      return;
-    }
-    final shouldDelete = await _confirmPermanentDelete(
-      itemCount: _controller.ids.length,
-    );
-    if (!shouldDelete) {
       return;
     }
     final fallbackService = PermanentDeleteService(
@@ -229,12 +226,6 @@ class _TrashPageState extends State<TrashPage> {
     if (_controller.selected.isEmpty) {
       return;
     }
-    final shouldDelete = await _confirmPermanentDelete(
-      itemCount: _controller.selected.length,
-    );
-    if (!shouldDelete) {
-      return;
-    }
     final fallbackService = PermanentDeleteService(
       fakeDeleteResult: {for (final id in _controller.selected) id: true},
     );
@@ -246,31 +237,6 @@ class _TrashPageState extends State<TrashPage> {
       setState(() => _isDeleting = false);
     }
     _showDeleteResult(result);
-  }
-
-  Future<bool> _confirmPermanentDelete({required int itemCount}) async {
-    final decision = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Confirm Permanent Delete'),
-          content: Text(
-            'This action permanently deletes $itemCount item(s) from system library when applicable.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-    return decision ?? false;
   }
 
   void _showDeleteResult(DeleteResult result) {
@@ -299,46 +265,114 @@ class _TrashPageState extends State<TrashPage> {
     );
   }
 
-  Widget _buildBottomAction({
-    required IconData icon,
-    required String label,
-    required VoidCallback? onTap,
-  }) {
-    final disabled = onTap == null;
-    return GestureDetector(
-      onTap: onTap,
-      child: Opacity(
-        opacity: disabled ? 0.4 : 1,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0x22000000),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, color: const Color(0xFF343434)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFF343434),
-                fontWeight: FontWeight.w500,
-              ),
+  Widget _buildBottomBar() {
+    final selectedCount = _controller.selected.length;
+    return SafeArea(
+      top: false,
+      child: Container(
+        key: const Key('trash-bottom-bar'),
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE6E8ED)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 18,
+              offset: Offset(0, 8),
             ),
           ],
         ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                selectedCount == 0
+                    ? '${_controller.ids.length} in trash'
+                    : '$selectedCount selected',
+                style: const TextStyle(
+                  color: Color(0xFF5F6670),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildBarButton(
+                    key: const Key('trash-bottom-restore-btn'),
+                    icon: Icons.restore_from_trash_outlined,
+                    label: 'Restore',
+                    onPressed: _isDeleting || selectedCount == 0
+                        ? null
+                        : _controller.restoreSelected,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildBarButton(
+                    key: const Key('trash-bottom-delete-btn'),
+                    icon: Icons.delete_forever_outlined,
+                    label: 'Delete',
+                    danger: true,
+                    onPressed: _isDeleting || selectedCount == 0
+                        ? null
+                        : _deleteSelectedPermanently,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildBarButton(
+                    key: const Key('trash-bottom-empty-btn'),
+                    icon: Icons.delete_sweep_outlined,
+                    label: 'Empty',
+                    danger: true,
+                    filledDanger: true,
+                    onPressed: _isDeleting || _controller.ids.isEmpty
+                        ? null
+                        : _deleteAllPermanently,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarButton({
+    required Key key,
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    bool danger = false,
+    bool filledDanger = false,
+  }) {
+    final foreground = danger
+        ? const Color(0xFFD92D20)
+        : const Color(0xFF263241);
+    final background = filledDanger
+        ? const Color(0xFFFFE8E6)
+        : const Color(0xFFF5F7FA);
+    return TextButton.icon(
+      key: key,
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      style: TextButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        disabledForegroundColor: const Color(0xFF9CA3AF),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
       ),
     );
   }
@@ -396,15 +430,14 @@ class _TrashPageState extends State<TrashPage> {
     if (pathOrUri == null || pathOrUri.isEmpty) {
       return null;
     }
-    if (_isPhAssetUri(pathOrUri)) {
-      if (mediaId == null) {
-        return null;
-      }
+    if (mediaId != null && _canLoadPlatformPreview(pathOrUri)) {
       final bytes = _mobilePreviewBytes[mediaId];
-      if (bytes == null) {
+      if (bytes != null) {
+        return MemoryImage(bytes);
+      }
+      if (_isPhAssetUri(pathOrUri) || _isContentUri(pathOrUri)) {
         return null;
       }
-      return MemoryImage(bytes);
     }
     if (_isLocalFilePath(pathOrUri)) {
       final localPath = pathOrUri.startsWith('file://')
@@ -422,9 +455,9 @@ class _TrashPageState extends State<TrashPage> {
 
   Future<void> _ensureMobilePreviewBytes(MediaItem media) async {
     final pathOrUri = media.pathOrUri;
-    if (media.type != MediaType.photo ||
+    if ((media.type != MediaType.photo && media.type != MediaType.video) ||
         pathOrUri == null ||
-        !_isPhAssetUri(pathOrUri) ||
+        !_canLoadPlatformPreview(pathOrUri) ||
         _mobilePreviewBytes.containsKey(media.id) ||
         !_mobilePreviewLoadingIds.add(media.id)) {
       return;
@@ -445,6 +478,13 @@ class _TrashPageState extends State<TrashPage> {
     } finally {
       _mobilePreviewLoadingIds.remove(media.id);
     }
+  }
+
+  bool _isContentUri(String value) => value.startsWith('content://');
+  bool _canLoadPlatformPreview(String value) {
+    return _isPhAssetUri(value) ||
+        _isContentUri(value) ||
+        _isLocalFilePath(value);
   }
 
   Widget _buildMissingPreview() {

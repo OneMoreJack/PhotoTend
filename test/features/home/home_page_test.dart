@@ -83,11 +83,17 @@ void main() {
     final controller = HomeController(
       initialMediaItems: [
         MediaItem(
-          id: 'a',
+          id: 'recent',
           type: MediaType.photo,
-          createdAt: DateTime(2026, 4, 1),
+          createdAt: DateTime(2026, 5, 13),
+        ),
+        MediaItem(
+          id: 'memory',
+          type: MediaType.photo,
+          createdAt: DateTime(2025, 5, 14),
         ),
       ],
+      nowProvider: () => DateTime(2026, 5, 14),
       seed: 1,
     );
 
@@ -95,9 +101,91 @@ void main() {
       MaterialApp(home: HomePage(controller: controller)),
     );
 
-    expect(find.text('近三天'), findsOneWidget);
-    expect(find.text('2026年4月'), findsOneWidget);
+    expect(
+      find.byKey(const Key('album-memory-hero-on-this-day')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('album-recent-card-recent-3-days')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('album-recent-card-recent-7-days')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('current-media-preview')), findsNothing);
+  });
+
+  testWidgets('tapping recent shortcut opens the matching browser collection', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'recent-photo',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13),
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14),
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+
+    expect(
+      find.byKey(const Key('album-recent-card-recent-3-days')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('album-recent-card-recent-3-days')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('media-browser-page')), findsOneWidget);
+    expect(controller.currentMediaId, 'recent-photo');
+  });
+
+  testWidgets('home cover renders iOS phasset preview bytes', (tester) async {
+    const channel = MethodChannel('rephoto/mobile_media');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'fetchPreviewImageData') {
+            return Uint8List.fromList(transparentImage);
+          }
+          return null;
+        });
+
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'photo-phasset',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 1),
+          pathOrUri: 'phasset://photo-phasset',
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14),
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('album-cover-month-2026-04')),
+        matching: find.byType(Image),
+      ),
+      findsOneWidget,
+    );
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
   });
 
   testWidgets('tapping month opens media browser at first item', (
@@ -122,7 +210,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: HomePage(controller: controller)),
     );
-    await tester.tap(find.text('2026年4月'));
+    await tester.tap(find.byKey(const Key('album-month-card-month-2026-04')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('media-browser-page')), findsOneWidget);
@@ -155,20 +243,51 @@ void main() {
       MaterialApp(home: HomePage(controller: controller)),
     );
 
-    expect(find.text('按年份'), findsOneWidget);
-    expect(find.text('2026年4月'), findsOneWidget);
+    expect(find.text('按年份'), findsNothing);
+    expect(find.text('年份'), findsNothing);
+    expect(
+      find.byKey(const Key('album-month-card-month-2026-04')),
+      findsOneWidget,
+    );
+    expect(find.text('1 张照片 · 1 个视频 · 300 B'), findsNothing);
     expect(find.text('2025年1月'), findsNothing);
 
-    await tester.tap(find.text('2025'));
+    final olderYear = find.byKey(const Key('year-summary-2025')).first;
+    await tester.drag(find.byType(ListView).first, const Offset(0, -500));
+    await tester.pumpAndSettle();
+    await tester.tap(olderYear);
     await tester.pumpAndSettle();
 
     expect(find.text('2025年1月'), findsOneWidget);
 
+    await tester.drag(find.byType(ListView).first, const Offset(0, -120));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('2025年1月'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('media-browser-page')), findsOneWidget);
     expect(controller.currentMediaId, 'old');
+  });
+
+  testWidgets('home trash button opens trash page', (tester) async {
+    final controller = HomeController(
+      initialMediaIds: const ['a', 'b'],
+      seed: 0,
+    );
+    controller.onSwipeUpDelete();
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+
+    await tester.tap(find.byTooltip('Trash'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Trash'), findsOneWidget);
+    expect(
+      find.byKey(Key('trash-grid-item-${controller.trashIds.first}')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('swipe up sends current media to trash', (tester) async {
@@ -272,6 +391,11 @@ void main() {
       ),
     );
 
+    expect(find.text('Import Folder'), findsNothing);
+    await tester.tap(find.byKey(const Key('browser-more-btn')));
+    await tester.pumpAndSettle();
+    expect(find.text('Import Folder'), findsOneWidget);
+
     await tester.tap(find.text('Import Folder'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
@@ -330,7 +454,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('正在加载媒体库…'), findsNothing);
-    expect(find.text('2026年4月'), findsOneWidget);
+    expect(
+      find.byKey(const Key('album-month-card-month-2026-04')),
+      findsOneWidget,
+    );
     expect(find.textContaining('1 张照片'), findsWidgets);
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -387,6 +514,50 @@ void main() {
             type: MediaType.photo,
             createdAt: DateTime.now(),
             pathOrUri: 'phasset://photo-phasset',
+          ),
+        ],
+        seed: 1,
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: MediaBrowserPage(controller: controller)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byKey(const Key('current-media-preview')), findsOneWidget);
+      expect(find.text('Preview unavailable'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('current-media-preview')),
+          matching: find.byType(Image),
+        ),
+        findsOneWidget,
+      );
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    },
+  );
+
+  testWidgets(
+    'photo preview renders image widget when Android content thumbnail bytes are available',
+    (tester) async {
+      const channel = MethodChannel('rephoto/mobile_media');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'fetchPreviewImageData') {
+              return Uint8List.fromList(transparentImage);
+            }
+            return null;
+          });
+
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'photo-content',
+            type: MediaType.photo,
+            createdAt: DateTime.now(),
+            pathOrUri: 'content://media/photo-content',
           ),
         ],
         seed: 1,
@@ -603,7 +774,7 @@ void main() {
       find.byKey(Key('trash-grid-item-${controller.trashIds.first}')),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Restore Selected'));
+    await tester.tap(find.byKey(const Key('trash-bottom-restore-btn')));
     await tester.pumpAndSettle();
 
     await tester.pageBack();
@@ -656,7 +827,7 @@ void main() {
     expect(find.text('已浏览完当前条件下的所有照片'), findsNothing);
   });
 
-  testWidgets('bottom action buttons order is browse then video then share', (
+  testWidgets('bottom action buttons order is browse then video then more', (
     tester,
   ) async {
     final controller = HomeController(
@@ -674,12 +845,19 @@ void main() {
     final videoCenter = tester.getCenter(
       find.byKey(const Key('video-only-btn')),
     );
-    final shareCenter = tester.getCenter(
-      find.byKey(const Key('open-in-gallery-btn')),
+    final moreCenter = tester.getCenter(
+      find.byKey(const Key('browser-more-btn')),
     );
 
     expect(browseCenter.dx, lessThan(videoCenter.dx));
-    expect(videoCenter.dx, lessThan(shareCenter.dx));
+    expect(videoCenter.dx, lessThan(moreCenter.dx));
+    expect(find.byKey(const Key('open-in-gallery-btn')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('browser-more-btn')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('open-in-gallery-btn')), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
   });
 
   testWidgets('geo location is displayed in location lock chip', (

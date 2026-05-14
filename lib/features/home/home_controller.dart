@@ -115,6 +115,31 @@ class HomeController extends ChangeNotifier {
     ];
   }
 
+  AlbumSummaryEntry get onThisDayMemoryEntry {
+    final now = _nowProvider();
+    final items =
+        _summarySourceItems()
+            .where((item) {
+              final createdAt = item.createdAt;
+              if (createdAt == null || createdAt.year >= now.year) {
+                return false;
+              }
+              return createdAt.month == now.month && createdAt.day == now.day;
+            })
+            .toList(growable: false)
+          ..sort(_compareMediaNewestFirst);
+    return _buildSummaryEntryFromItems(
+      id: 'on-this-day',
+      title: '那年今日',
+      items: items,
+      previewLimit: null,
+      query: MediaCollectionQuery(
+        title: '那年今日',
+        mediaIds: items.map((item) => item.id).toSet(),
+      ),
+    );
+  }
+
   List<AlbumSummaryEntry> get monthlyAlbumSummaryEntries {
     return yearlyAlbumSummaryGroups
         .expand((group) => group.months)
@@ -894,6 +919,10 @@ class HomeController extends ChangeNotifier {
         return cached == _activeDeviceFilter;
       }).toList();
     }
+    final collectionIds = _activeCollectionQuery?.mediaIds;
+    if (collectionIds != null) {
+      finalIds = finalIds.where(collectionIds.contains).toList();
+    }
     // Apply overlay day filter (independent from time filter bar)
     final overlayStart = _overlayDayStart;
     final overlayEnd = _overlayDayEnd;
@@ -1140,10 +1169,27 @@ class HomeController extends ChangeNotifier {
         })
         .toList(growable: false);
 
+    return _buildSummaryEntryFromItems(
+      id: id,
+      title: title,
+      items: items,
+      query: MediaCollectionQuery(title: title, timeStart: start, timeEnd: end),
+    );
+  }
+
+  AlbumSummaryEntry _buildSummaryEntryFromItems({
+    required String id,
+    required String title,
+    required List<MediaItem> items,
+    required MediaCollectionQuery query,
+    int? previewLimit = 4,
+  }) {
     var photoCount = 0;
     var videoCount = 0;
     var knownSizeBytes = 0;
     var hasUnknownSize = false;
+    final displayItems = List<MediaItem>.from(items)
+      ..sort(_compareMediaNewestFirst);
     for (final item in items) {
       switch (item.type) {
         case MediaType.photo:
@@ -1158,16 +1204,64 @@ class HomeController extends ChangeNotifier {
         knownSizeBytes += sizeBytes;
       }
     }
+    final cover = _selectSummaryCover(displayItems);
 
     return AlbumSummaryEntry(
       id: id,
       title: title,
-      query: MediaCollectionQuery(title: title, timeStart: start, timeEnd: end),
+      query: query,
       photoCount: photoCount,
       videoCount: videoCount,
       knownSizeBytes: knownSizeBytes,
       hasUnknownSize: hasUnknownSize,
+      coverMediaId: cover?.id,
+      previewMediaIds:
+          (previewLimit == null
+                  ? displayItems
+                  : displayItems.take(previewLimit))
+              .map((item) => item.id)
+              .toList(growable: false),
     );
+  }
+
+  MediaItem? _selectSummaryCover(List<MediaItem> items) {
+    if (items.isEmpty) {
+      return null;
+    }
+    MediaItem? firstPhoto;
+    MediaItem? firstVideo;
+    for (final item in items) {
+      switch (item.type) {
+        case MediaType.photo:
+          firstPhoto ??= item;
+          final path = item.pathOrUri;
+          if (path != null && path.isNotEmpty) {
+            return item;
+          }
+        case MediaType.video:
+          firstVideo ??= item;
+      }
+    }
+    return firstPhoto ?? firstVideo;
+  }
+
+  static int _compareMediaNewestFirst(MediaItem left, MediaItem right) {
+    final leftDate = left.createdAt;
+    final rightDate = right.createdAt;
+    if (leftDate == null && rightDate == null) {
+      return left.id.compareTo(right.id);
+    }
+    if (leftDate == null) {
+      return 1;
+    }
+    if (rightDate == null) {
+      return -1;
+    }
+    final dateCompare = rightDate.compareTo(leftDate);
+    if (dateCompare != 0) {
+      return dateCompare;
+    }
+    return left.id.compareTo(right.id);
   }
 
   DateTime? _laterDate(DateTime? a, DateTime? b) {

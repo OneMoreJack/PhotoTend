@@ -11,7 +11,9 @@ void main() {
     );
 
     await tester.tap(find.byKey(const Key('trash-grid-item-1')));
-    await tester.tap(find.text('Restore Selected'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 selected'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('trash-bottom-restore-btn')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('trash-grid-item-1')), findsNothing);
@@ -19,7 +21,7 @@ void main() {
   });
 
   testWidgets(
-    'delete all permanently requires confirmation then clears entries',
+    'delete all permanently skips app confirmation and clears entries',
     (tester) async {
       final service = PermanentDeleteService(
         fakeDeleteResult: const {'1': true, '2': true},
@@ -30,18 +32,10 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byTooltip('Clear Trash'));
+      await tester.tap(find.byKey(const Key('trash-bottom-empty-btn')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Confirm Permanent Delete'), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
-      expect(find.text('Delete'), findsOneWidget);
-      expect(find.byKey(const Key('trash-grid-item-1')), findsOneWidget);
-      expect(find.byKey(const Key('trash-grid-item-2')), findsOneWidget);
-
-      await tester.tap(find.text('Delete'));
-      await tester.pumpAndSettle();
-
+      expect(find.text('Confirm Permanent Delete'), findsNothing);
       expect(find.byKey(const Key('trash-grid-item-1')), findsNothing);
       expect(find.byKey(const Key('trash-grid-item-2')), findsNothing);
     },
@@ -62,11 +56,7 @@ void main() {
     await tester.tap(find.byKey(const Key('trash-grid-item-1')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Delete Selected'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Confirm Permanent Delete'), findsOneWidget);
-    await tester.tap(find.text('Delete'));
+    await tester.tap(find.byKey(const Key('trash-bottom-delete-btn')));
     await tester.pumpAndSettle();
 
     expect(
@@ -92,9 +82,7 @@ void main() {
       await tester.tap(find.byKey(const Key('trash-grid-item-2')));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Delete Selected'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Delete'));
+      await tester.tap(find.byKey(const Key('trash-bottom-delete-btn')));
       await tester.pumpAndSettle();
 
       expect(
@@ -120,9 +108,8 @@ void main() {
     await tester.tap(find.byKey(const Key('trash-grid-item-1')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Delete Selected'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Delete'));
+    await tester.tap(find.byKey(const Key('trash-bottom-delete-btn')));
+    await tester.pump();
     await tester.pump();
 
     expect(find.text('Deleting...'), findsOneWidget);
@@ -149,6 +136,7 @@ void main() {
     expect(find.byKey(const Key('trash-grid-item-v1')), findsOneWidget);
     expect(find.byKey(const Key('trash-grid-item-p1')), findsOneWidget);
     expect(find.byIcon(Icons.videocam), findsOneWidget);
+    expect(find.byKey(const Key('trash-bottom-bar')), findsOneWidget);
   });
 
   testWidgets('grid view does not expose raw media ids as list text', (
@@ -184,10 +172,25 @@ void main() {
     await tester.tap(find.byTooltip('Select All'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Restore Selected'));
+    expect(find.text('2 selected'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('trash-bottom-restore-btn')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('trash-grid-item-1')), findsNothing);
     expect(find.byKey(const Key('trash-grid-item-2')), findsNothing);
+  });
+
+  testWidgets('trash grid uses more columns on wider screens', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(960, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: TrashPage(initialIds: ['1', '2', '3', '4'])),
+    );
+
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, greaterThanOrEqualTo(5));
   });
 }

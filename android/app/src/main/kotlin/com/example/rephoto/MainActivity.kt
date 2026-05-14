@@ -4,11 +4,14 @@ import android.Manifest
 import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.ExifInterface
 import android.net.Uri
 import android.location.Geocoder
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Size
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -16,6 +19,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.util.Locale
 
 class MainActivity : FlutterActivity() {
@@ -127,6 +131,14 @@ class MainActivity : FlutterActivity() {
                             }
                             runOnUiThread { result.success(models) }
                         }.start()
+                    }
+                    "fetchPreviewImageData" -> {
+                        val pathOrUri = call.argument<String>("pathOrUri")
+                        if (pathOrUri.isNullOrBlank()) {
+                            result.success(null)
+                        } else {
+                            runAsync(result) { fetchPreviewImageData(pathOrUri) }
+                        }
                     }
                     "openInGallery" -> {
                         val pathOrUri = call.argument<String>("pathOrUri")
@@ -541,6 +553,38 @@ class MainActivity : FlutterActivity() {
             Log.d(logTag, "readDeviceModelFromExif: ${e.message}")
         }
         return null
+    }
+
+    private fun fetchPreviewImageData(pathOrUri: String): ByteArray? {
+        val bitmap = try {
+            val uri = resolveContentUri(pathOrUri)
+            if (uri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentResolver.loadThumbnail(uri, Size(768, 768), null)
+            } else {
+                val path = when {
+                    pathOrUri.startsWith("file://") -> Uri.parse(pathOrUri).path
+                    pathOrUri.startsWith("content://") -> null
+                    else -> pathOrUri
+                }
+                if (!path.isNullOrBlank()) {
+                    BitmapFactory.decodeFile(path)
+                } else if (uri != null) {
+                    contentResolver.openInputStream(uri)?.use {
+                        BitmapFactory.decodeStream(it)
+                    }
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(logTag, "fetchPreviewImageData failed: ${e.message}")
+            null
+        } ?: return null
+
+        return ByteArrayOutputStream().use { output ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
+            output.toByteArray()
+        }
     }
 
     private fun buildDeviceLabel(make: String?, model: String?): String? {

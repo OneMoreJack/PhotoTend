@@ -162,18 +162,6 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 ),
                 title: _buildAppBarTitle(),
                 actions: [
-                  if (_shouldShowImportFolderAction)
-                    TextButton.icon(
-                      onPressed: _isImporting ? null : _importFolder,
-                      icon: const Icon(
-                        Icons.folder_open,
-                        color: Colors.black87,
-                      ),
-                      label: const Text(
-                        'Import Folder',
-                        style: TextStyle(color: Colors.black87),
-                      ),
-                    ),
                   IconButton(
                     onPressed: _openTrash,
                     tooltip: 'Trash',
@@ -533,13 +521,70 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           ),
           const SizedBox(width: 32),
           _buildBottomActionIcon(
-            key: const Key('open-in-gallery-btn'),
-            icon: Icons.ios_share_rounded,
+            key: const Key('browser-more-btn'),
+            icon: Icons.more_horiz_rounded,
             active: false,
-            onTap: _openInGallery,
+            onTap: _showBrowserMoreMenu,
           ),
         ],
       ),
+    );
+  }
+
+  void _showBrowserMoreMenu() {
+    final canOpenGallery = _controller.currentMedia?.pathOrUri != null;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  key: const Key('open-in-gallery-btn'),
+                  enabled: canOpenGallery,
+                  leading: const Icon(Icons.ios_share_rounded),
+                  title: const Text('Open in gallery'),
+                  onTap: canOpenGallery
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          _openInGallery();
+                        }
+                      : null,
+                ),
+                if (_shouldShowImportFolderAction)
+                  ListTile(
+                    key: const Key('import-folder-btn'),
+                    enabled: !_isImporting,
+                    leading: const Icon(Icons.folder_open_outlined),
+                    title: const Text('Import Folder'),
+                    onTap: _isImporting
+                        ? null
+                        : () {
+                            Navigator.of(sheetContext).pop();
+                            unawaited(_importFolder());
+                          },
+                  ),
+                ListTile(
+                  key: const Key('browser-settings-btn'),
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Settings'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(_openSettings());
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -551,6 +596,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         item.id: item,
     };
     final items = _controller.filteredMediaIds
+        .where((id) => !_controller.trashIds.contains(id))
         .map((id) => mediaById[id])
         .whereType<MediaItem>()
         .toList(growable: false);
@@ -1641,15 +1687,14 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     if (pathOrUri == null || pathOrUri.isEmpty) {
       return null;
     }
-    if (_isPhAssetUri(pathOrUri)) {
-      if (mediaId == null) {
-        return null;
-      }
+    if (mediaId != null && _canLoadPlatformPreview(pathOrUri)) {
       final bytes = _mobilePreviewBytes[mediaId];
-      if (bytes == null) {
+      if (bytes != null) {
+        return MemoryImage(bytes);
+      }
+      if (_isPhAssetUri(pathOrUri) || _isContentUri(pathOrUri)) {
         return null;
       }
-      return MemoryImage(bytes);
     }
     if (_isLocalFilePath(pathOrUri)) {
       final localPath = pathOrUri.startsWith('file://')
@@ -1666,12 +1711,18 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   }
 
   bool _isPhAssetUri(String value) => value.startsWith('phasset://');
+  bool _isContentUri(String value) => value.startsWith('content://');
+  bool _canLoadPlatformPreview(String value) {
+    return _isPhAssetUri(value) ||
+        _isContentUri(value) ||
+        _isLocalFilePath(value);
+  }
 
   Future<void> _ensureMobilePreviewBytes(MediaItem media) async {
     final pathOrUri = media.pathOrUri;
     if ((media.type != MediaType.photo && media.type != MediaType.video) ||
         pathOrUri == null ||
-        !_isPhAssetUri(pathOrUri) ||
+        !_canLoadPlatformPreview(pathOrUri) ||
         _mobilePreviewBytes.containsKey(media.id) ||
         !_mobilePreviewLoadingIds.add(media.id)) {
       return;

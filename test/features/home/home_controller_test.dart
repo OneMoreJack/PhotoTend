@@ -46,6 +46,147 @@ void main() {
     expect(recent7.knownSizeBytes, 200);
   });
 
+  test('album summaries exclude trash from cover and previews', () {
+    final now = DateTime(2026, 5, 14, 12);
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'trashed-cover',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 14, 10),
+          pathOrUri: '/tmp/trashed.jpg',
+        ),
+        MediaItem(
+          id: 'kept-photo',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13, 10),
+          pathOrUri: '/tmp/kept.jpg',
+        ),
+        MediaItem(
+          id: 'kept-video',
+          type: MediaType.video,
+          createdAt: DateTime(2026, 5, 12, 10),
+          pathOrUri: '/tmp/kept.mov',
+        ),
+      ],
+      nowProvider: () => now,
+      seed: 1,
+    );
+
+    controller.updateTrash({'trashed-cover'});
+
+    final recent3 = controller.recentAlbumSummaryEntries.singleWhere(
+      (entry) => entry.id == 'recent-3-days',
+    );
+    expect(recent3.coverMediaId, 'kept-photo');
+    expect(recent3.previewMediaIds, ['kept-photo', 'kept-video']);
+    expect(recent3.previewMediaIds, isNot(contains('trashed-cover')));
+  });
+
+  test('album summary cover prefers photos with path before videos', () {
+    final now = DateTime(2026, 5, 14, 12);
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'new-video',
+          type: MediaType.video,
+          createdAt: DateTime(2026, 5, 14, 11),
+          pathOrUri: '/tmp/video.mov',
+        ),
+        MediaItem(
+          id: 'photo-without-path',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 14, 10),
+        ),
+        MediaItem(
+          id: 'photo-with-path',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13, 10),
+          pathOrUri: '/tmp/photo.jpg',
+        ),
+      ],
+      nowProvider: () => now,
+      seed: 1,
+    );
+
+    final recent3 = controller.recentAlbumSummaryEntries.singleWhere(
+      (entry) => entry.id == 'recent-3-days',
+    );
+
+    expect(recent3.coverMediaId, 'photo-with-path');
+    expect(recent3.previewMediaIds.take(3), [
+      'new-video',
+      'photo-without-path',
+      'photo-with-path',
+    ]);
+  });
+
+  test('on this day memory includes prior years on the same month and day', () {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'same-day-2025',
+          type: MediaType.photo,
+          createdAt: DateTime(2025, 5, 14, 9),
+          pathOrUri: '/tmp/2025.jpg',
+        ),
+        MediaItem(
+          id: 'same-day-2024',
+          type: MediaType.video,
+          createdAt: DateTime(2024, 5, 14, 9),
+        ),
+        MediaItem(
+          id: 'same-day-2023',
+          type: MediaType.photo,
+          createdAt: DateTime(2023, 5, 14, 9),
+        ),
+        MediaItem(
+          id: 'same-day-2022',
+          type: MediaType.photo,
+          createdAt: DateTime(2022, 5, 14, 9),
+        ),
+        MediaItem(
+          id: 'same-day-2021',
+          type: MediaType.photo,
+          createdAt: DateTime(2021, 5, 14, 9),
+        ),
+        MediaItem(
+          id: 'today',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 14, 9),
+        ),
+        MediaItem(
+          id: 'other-day',
+          type: MediaType.photo,
+          createdAt: DateTime(2025, 5, 13, 9),
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14, 12),
+      seed: 1,
+    );
+
+    final memory = controller.onThisDayMemoryEntry;
+
+    expect(memory.title, '那年今日');
+    expect(memory.photoCount, 4);
+    expect(memory.videoCount, 1);
+    expect(memory.coverMediaId, 'same-day-2025');
+    expect(memory.previewMediaIds, [
+      'same-day-2025',
+      'same-day-2024',
+      'same-day-2023',
+      'same-day-2022',
+      'same-day-2021',
+    ]);
+    expect(memory.query.mediaIds, {
+      'same-day-2025',
+      'same-day-2024',
+      'same-day-2023',
+      'same-day-2022',
+      'same-day-2021',
+    });
+  });
+
   test('monthly summaries are newest first and count media by type', () {
     final controller = HomeController(
       initialMediaItems: [

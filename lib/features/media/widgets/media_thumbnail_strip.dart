@@ -23,7 +23,7 @@ class MediaThumbnailStrip extends StatefulWidget {
 }
 
 class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
-  static const double _itemExtent = 52;
+  static const double _itemExtent = 78;
   late final ScrollController _scrollController;
 
   @override
@@ -59,11 +59,11 @@ class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
     }
     return SizedBox(
       key: const Key('media-thumbnail-strip'),
-      height: 68,
+      height: 104,
       child: ListView.builder(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(12, 6, 36, 6),
+        padding: const EdgeInsets.fromLTRB(20, 13, 44, 13),
         itemExtent: _itemExtent,
         itemCount: widget.items.length,
         itemBuilder: (context, index) {
@@ -84,12 +84,12 @@ class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
                   curve: Curves.easeOutCubic,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
-                    padding: const EdgeInsets.all(2),
+                    padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(9),
                       border: Border.all(
                         color: selected
-                            ? const Color(0xFF2A5BD7)
+                            ? const Color(0xFF0066D6)
                             : Colors.transparent,
                         width: 2,
                       ),
@@ -97,7 +97,7 @@ class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
                           ? [
                               BoxShadow(
                                 color: const Color(
-                                  0xFF2A5BD7,
+                                  0xFF0066D6,
                                 ).withValues(alpha: 0.28),
                                 blurRadius: 10,
                                 offset: const Offset(0, 3),
@@ -110,7 +110,7 @@ class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
                         borderRadius: BorderRadius.circular(7),
                         border: Border.all(
                           color: selected ? Colors.white : Colors.transparent,
-                          width: 1.5,
+                          width: 1,
                         ),
                       ),
                       child: ClipRRect(

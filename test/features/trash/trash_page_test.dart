@@ -12,7 +12,6 @@ void main() {
 
     await tester.tap(find.byKey(const Key('trash-grid-item-1')));
     await tester.pumpAndSettle();
-    expect(find.text('1 selected'), findsOneWidget);
     await tester.tap(find.byKey(const Key('trash-bottom-restore-btn')));
     await tester.pumpAndSettle();
 
@@ -135,7 +134,7 @@ void main() {
 
     expect(find.byKey(const Key('trash-grid-item-v1')), findsOneWidget);
     expect(find.byKey(const Key('trash-grid-item-p1')), findsOneWidget);
-    expect(find.byIcon(Icons.videocam), findsOneWidget);
+    expect(find.byIcon(Icons.play_circle_outline_rounded), findsOneWidget);
     expect(find.byKey(const Key('trash-bottom-bar')), findsOneWidget);
   });
 
@@ -172,7 +171,6 @@ void main() {
     await tester.tap(find.byTooltip('Select All'));
     await tester.pumpAndSettle();
 
-    expect(find.text('2 selected'), findsOneWidget);
     await tester.tap(find.byKey(const Key('trash-bottom-restore-btn')));
     await tester.pumpAndSettle();
 

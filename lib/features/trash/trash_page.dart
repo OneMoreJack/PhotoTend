@@ -69,20 +69,41 @@ class _TrashPageState extends State<TrashPage> {
             }
           },
           child: Scaffold(
+            backgroundColor: const Color(0xFFFFFAFD),
             appBar: AppBar(
+              backgroundColor: const Color(0xFFFFFAFD),
+              scrolledUnderElevation: 0,
+              leading: IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back_rounded),
+                color: const Color(0xFF0066D6),
+                onPressed: _closeWithResult,
+              ),
               title: const Text('Trash'),
+              titleTextStyle: const TextStyle(
+                color: Color(0xFF1D1D21),
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
               actions: [
-                IconButton(
-                  tooltip: 'Select All',
-                  onPressed: _isDeleting || _controller.ids.isEmpty
-                      ? null
-                      : _controller.toggleSelectAll,
-                  icon: Icon(
-                    _controller.isAllSelected
-                        ? Icons.deselect_outlined
-                        : Icons.select_all_outlined,
+                Tooltip(
+                  message: 'Select All',
+                  child: TextButton(
+                    onPressed: _isDeleting || _controller.ids.isEmpty
+                        ? null
+                        : _controller.toggleSelectAll,
+                    child: Text(
+                      _controller.isAllSelected ? 'Deselect' : 'Select',
+                      style: const TextStyle(
+                        color: Color(0xFF0066D6),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
+                const SizedBox(width: 14),
               ],
             ),
             body: Column(
@@ -103,16 +124,13 @@ class _TrashPageState extends State<TrashPage> {
                     builder: (context, constraints) {
                       final columns = (constraints.maxWidth / 150)
                           .floor()
-                          .clamp(3, 7);
+                          .clamp(3, 6);
                       return GridView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
+                        padding: const EdgeInsets.fromLTRB(17, 44, 17, 24),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: columns,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 17,
+                          crossAxisSpacing: 17,
                         ),
                         itemCount: _controller.ids.length,
                         itemBuilder: (context, index) {
@@ -124,22 +142,45 @@ class _TrashPageState extends State<TrashPage> {
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 140),
                               curve: Curves.easeOutCubic,
-                              padding: const EdgeInsets.all(2),
+                              padding: EdgeInsets.zero,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(13),
-                                border: Border.all(
-                                  color: selected
-                                      ? const Color(0xFF2A5BD7)
-                                      : Colors.transparent,
-                                  width: 2,
-                                ),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(8),
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    _buildGridPreview(id),
+                                    ColorFiltered(
+                                      colorFilter: selected
+                                          ? const ColorFilter.mode(
+                                              Colors.transparent,
+                                              BlendMode.dst,
+                                            )
+                                          : const ColorFilter.matrix(<double>[
+                                              0.2126,
+                                              0.7152,
+                                              0.0722,
+                                              0,
+                                              0,
+                                              0.2126,
+                                              0.7152,
+                                              0.0722,
+                                              0,
+                                              0,
+                                              0.2126,
+                                              0.7152,
+                                              0.0722,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              1,
+                                              0,
+                                            ]),
+                                      child: _buildGridPreview(id),
+                                    ),
                                     AnimatedOpacity(
                                       opacity: selected ? 1 : 0,
                                       duration: const Duration(
@@ -147,22 +188,23 @@ class _TrashPageState extends State<TrashPage> {
                                       ),
                                       child: Container(
                                         color: const Color(
-                                          0xFF2A5BD7,
-                                        ).withValues(alpha: 0.18),
+                                          0xFF0066D6,
+                                        ).withValues(alpha: 0.08),
                                       ),
                                     ),
                                     if (_isVideo(id))
                                       const Positioned(
-                                        left: 6,
-                                        bottom: 6,
+                                        right: 8,
+                                        bottom: 8,
                                         child: Icon(
-                                          Icons.videocam,
+                                          Icons.play_circle_outline_rounded,
                                           color: Colors.white,
+                                          size: 25,
                                         ),
                                       ),
                                     Positioned(
-                                      right: 6,
-                                      top: 6,
+                                      right: 9,
+                                      top: 9,
                                       child: AnimatedContainer(
                                         duration: const Duration(
                                           milliseconds: 120,
@@ -171,19 +213,17 @@ class _TrashPageState extends State<TrashPage> {
                                         height: 22,
                                         decoration: BoxDecoration(
                                           color: selected
-                                              ? const Color(0xFF2A5BD7)
-                                              : const Color(0x70000000),
+                                              ? const Color(0xFF0066D6)
+                                              : Colors.transparent,
                                           shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 1.5,
-                                          ),
                                         ),
-                                        child: Icon(
-                                          selected ? Icons.check : Icons.add,
-                                          size: 14,
-                                          color: Colors.white,
-                                        ),
+                                        child: selected
+                                            ? const Icon(
+                                                Icons.check,
+                                                size: 16,
+                                                color: Colors.white,
+                                              )
+                                            : null,
                                       ),
                                     ),
                                   ],
@@ -205,23 +245,6 @@ class _TrashPageState extends State<TrashPage> {
     );
   }
 
-  Future<void> _deleteAllPermanently() async {
-    if (_controller.ids.isEmpty) {
-      return;
-    }
-    final fallbackService = PermanentDeleteService(
-      fakeDeleteResult: {for (final id in _controller.ids) id: true},
-    );
-    setState(() => _isDeleting = true);
-    final result = await _controller.permanentDeleteAll(
-      widget.deleteService ?? fallbackService,
-    );
-    if (mounted) {
-      setState(() => _isDeleting = false);
-    }
-    _showDeleteResult(result);
-  }
-
   Future<void> _deleteSelectedPermanently() async {
     if (_controller.selected.isEmpty) {
       return;
@@ -231,6 +254,23 @@ class _TrashPageState extends State<TrashPage> {
     );
     setState(() => _isDeleting = true);
     final result = await _controller.permanentDeleteSelected(
+      widget.deleteService ?? fallbackService,
+    );
+    if (mounted) {
+      setState(() => _isDeleting = false);
+    }
+    _showDeleteResult(result);
+  }
+
+  Future<void> _deleteAllPermanently() async {
+    if (_controller.ids.isEmpty) {
+      return;
+    }
+    final fallbackService = PermanentDeleteService(
+      fakeDeleteResult: {for (final id in _controller.ids) id: true},
+    );
+    setState(() => _isDeleting = true);
+    final result = await _controller.permanentDeleteAll(
       widget.deleteService ?? fallbackService,
     );
     if (mounted) {
@@ -271,17 +311,17 @@ class _TrashPageState extends State<TrashPage> {
       top: false,
       child: Container(
         key: const Key('trash-bottom-bar'),
-        margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        margin: const EdgeInsets.fromLTRB(17, 8, 17, 24),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE6E8ED)),
-          boxShadow: const [
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFE8E5EB)),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x1A000000),
-              blurRadius: 18,
-              offset: Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
@@ -291,17 +331,16 @@ class _TrashPageState extends State<TrashPage> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                selectedCount == 0
-                    ? '${_controller.ids.length} in trash'
-                    : '$selectedCount selected',
+                '${_controller.ids.length} in trash',
                 style: const TextStyle(
-                  color: Color(0xFF5F6670),
-                  fontSize: 12,
+                  color: Color(0xFF555B66),
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
@@ -314,19 +353,18 @@ class _TrashPageState extends State<TrashPage> {
                         : _controller.restoreSelected,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: _buildBarButton(
                     key: const Key('trash-bottom-delete-btn'),
                     icon: Icons.delete_forever_outlined,
                     label: 'Delete',
-                    danger: true,
                     onPressed: _isDeleting || selectedCount == 0
                         ? null
                         : _deleteSelectedPermanently,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: _buildBarButton(
                     key: const Key('trash-bottom-empty-btn'),
@@ -357,22 +395,39 @@ class _TrashPageState extends State<TrashPage> {
   }) {
     final foreground = danger
         ? const Color(0xFFD92D20)
-        : const Color(0xFF263241);
+        : const Color(0xFF89909B);
     final background = filledDanger
-        ? const Color(0xFFFFE8E6)
-        : const Color(0xFFF5F7FA);
-    return TextButton.icon(
+        ? const Color(0xFFFFE3E2)
+        : const Color(0xFFF4F5F8);
+    return TextButton(
       key: key,
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       style: TextButton.styleFrom(
         backgroundColor: background,
         foregroundColor: foreground,
         disabledForegroundColor: const Color(0xFF9CA3AF),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 22),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
       ),
     );
   }

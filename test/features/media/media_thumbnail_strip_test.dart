@@ -34,13 +34,13 @@ void main() {
     );
 
     expect(find.byKey(const Key('media-thumbnail-strip')), findsOneWidget);
-    expect(find.byKey(const Key('media-thumbnail-m0')), findsOneWidget);
-    expect(find.byKey(const Key('media-thumbnail-m29')), findsNothing);
+    expect(find.byKey(const Key('media-thumbnail-m29')), findsOneWidget);
+    expect(find.byKey(const Key('media-thumbnail-m0')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('media-thumbnail-m2')));
+    await tester.tap(find.byKey(const Key('media-thumbnail-m27')));
     await tester.pumpAndSettle();
 
-    expect(controller.currentMediaId, 'm2');
+    expect(controller.currentMediaId, 'm27');
   });
 
   testWidgets('thumbnail strip excludes trashed media', (tester) async {
@@ -108,8 +108,8 @@ void main() {
           matching: find.byType(ListView),
         ),
       );
-      expect(strip.itemExtent, 52);
-      expect(strip.padding, const EdgeInsets.fromLTRB(12, 6, 36, 6));
+      expect(strip.itemExtent, 78);
+      expect(strip.padding, const EdgeInsets.fromLTRB(20, 13, 44, 13));
 
       final thumbnail = find.byKey(const Key('media-thumbnail-video-local'));
       expect(thumbnail, findsOneWidget);

@@ -263,7 +263,7 @@ void main() {
     },
   );
 
-  test('applying collection query starts from earliest matching media', () {
+  test('applying collection query starts from newest matching media', () {
     final controller = HomeController(
       initialMediaItems: [
         MediaItem(
@@ -293,8 +293,8 @@ void main() {
       ),
     );
 
-    expect(controller.filteredMediaIds, ['early', 'late']);
-    expect(controller.currentMediaId, 'early');
+    expect(controller.filteredMediaIds, ['late', 'early']);
+    expect(controller.currentMediaId, 'late');
   });
 
   test('jump to media updates current media inside active filtered set', () {

@@ -32,12 +32,10 @@ class AlbumSummaryPage extends StatefulWidget {
 }
 
 class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
-  final Set<int> _expandedYears = <int>{};
   final MobileMediaRepository _mobileMediaRepository =
       MethodChannelMobileMediaRepository();
   final Map<String, Uint8List> _mobilePreviewBytes = <String, Uint8List>{};
   final Set<String> _mobilePreviewLoadingIds = <String>{};
-  bool _didApplyDefaultExpansion = false;
 
   @override
   Widget build(BuildContext context) {
@@ -46,14 +44,6 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
       builder: (context, _) {
         final recentEntries = widget.controller.recentAlbumSummaryEntries;
         final yearGroups = widget.controller.yearlyAlbumSummaryGroups;
-        if (!_didApplyDefaultExpansion && yearGroups.isNotEmpty) {
-          _expandedYears.addAll(
-            yearGroups
-                .where((group) => group.defaultExpanded)
-                .map((group) => group.year),
-          );
-          _didApplyDefaultExpansion = true;
-        }
         final monthEntries = yearGroups
             .expand((group) => group.months)
             .toList(growable: false);
@@ -70,111 +60,72 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
             .where((entry) => entry.id == 'recent-7-days')
             .firstOrNull;
         return Scaffold(
-          backgroundColor: const Color(0xFFF6F7F9),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFF6F7F9),
-            elevation: 0,
-            title: const Text('RePhoto'),
-            actions: [
-              IconButton(
-                tooltip: 'Trash',
-                onPressed: _openTrash,
-                icon: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(Icons.delete_outline),
-                    if (widget.controller.trashCount > 0)
-                      Positioned(
-                        right: -6,
-                        top: -6,
-                        child: Container(
-                          key: const Key('trash-badge'),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 1,
-                          ),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.all(Radius.circular(10)),
-                          ),
+          backgroundColor: const Color(0xFFFFFAFD),
+          body: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(26, 24, 26, 28),
+                    children: [
+                      if (widget.statusMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
                           child: Text(
-                            '${widget.controller.trashCount}',
-                            key: const Key('trash-badge-text'),
+                            widget.statusMessage!,
+                            key: const Key('mobile-library-status'),
+                            textAlign: TextAlign.center,
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: Colors.black54,
                             ),
                           ),
                         ),
+                      _OnThisDayHeroCard(
+                        entry: onThisDay,
+                        mediaById: mediaById,
+                        previewBytesById: _mobilePreviewBytes,
+                        onNeedPreview: _ensureMobilePreviewBytes,
+                        onTap: onThisDay.hasMedia
+                            ? () => _openBrowser(context, onThisDay)
+                            : null,
                       ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          body: SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-              children: [
-                if (widget.statusMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      widget.statusMessage!,
-                      key: const Key('mobile-library-status'),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
+                      _RecentShortcutSection(
+                        entries: [
+                          if (recent3 != null) recent3,
+                          if (recent7 != null) recent7,
+                        ],
+                        mediaById: mediaById,
+                        previewBytesById: _mobilePreviewBytes,
+                        onNeedPreview: _ensureMobilePreviewBytes,
+                        onOpen: (entry) => _openBrowser(context, entry),
                       ),
-                    ),
+                      if (yearGroups.isNotEmpty) ...[
+                        for (final group in yearGroups)
+                          _YearSummarySection(
+                            group: group,
+                            mediaById: mediaById,
+                            previewBytesById: _mobilePreviewBytes,
+                            onNeedPreview: _ensureMobilePreviewBytes,
+                            onOpenMonth: (entry) =>
+                                _openBrowser(context, entry),
+                          ),
+                      ] else if (widget.statusMessage == null)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 64),
+                          child: Text(
+                            '暂无可显示的照片或视频',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.black54),
+                          ),
+                        ),
+                    ],
                   ),
-                _OnThisDayHeroCard(
-                  entry: onThisDay,
-                  mediaById: mediaById,
-                  previewBytesById: _mobilePreviewBytes,
-                  onNeedPreview: _ensureMobilePreviewBytes,
-                  onTap: onThisDay.hasMedia
-                      ? () => _openBrowser(context, onThisDay)
-                      : null,
                 ),
-                _RecentShortcutSection(
-                  entries: [
-                    if (recent3 != null) recent3,
-                    if (recent7 != null) recent7,
-                  ],
-                  mediaById: mediaById,
-                  previewBytesById: _mobilePreviewBytes,
-                  onNeedPreview: _ensureMobilePreviewBytes,
-                  onOpen: (entry) => _openBrowser(context, entry),
+                _AlbumBottomNav(
+                  trashCount: widget.controller.trashCount,
+                  onTrash: _openTrash,
                 ),
-                if (yearGroups.isNotEmpty) ...[
-                  for (final group in yearGroups)
-                    _YearSummarySection(
-                      group: group,
-                      mediaById: mediaById,
-                      previewBytesById: _mobilePreviewBytes,
-                      onNeedPreview: _ensureMobilePreviewBytes,
-                      expanded: _expandedYears.contains(group.year),
-                      onToggle: () {
-                        setState(() {
-                          if (!_expandedYears.add(group.year)) {
-                            _expandedYears.remove(group.year);
-                          }
-                        });
-                      },
-                      onOpenMonth: (entry) => _openBrowser(context, entry),
-                    ),
-                ] else if (widget.statusMessage == null)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 64),
-                    child: Text(
-                      '暂无可显示的照片或视频',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -261,6 +212,128 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
   }
 }
 
+class _AlbumBottomNav extends StatelessWidget {
+  const _AlbumBottomNav({required this.trashCount, required this.onTrash});
+
+  final int trashCount;
+  final VoidCallback onTrash;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: Color(0xF7FFFAFD),
+          border: Border(top: BorderSide(color: Color(0x0F000000))),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(26, 8, 26, 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _AlbumNavItem(
+                icon: Icons.photo_library_outlined,
+                label: 'Photos',
+                active: true,
+                onTap: () {},
+              ),
+              _AlbumNavItem(
+                icon: Icons.calendar_month_outlined,
+                label: 'Import',
+                onTap: () {},
+              ),
+              _AlbumNavItem(
+                icon: Icons.delete_outline,
+                label: 'Trash',
+                badgeCount: trashCount,
+                onTap: onTrash,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AlbumNavItem extends StatelessWidget {
+  const _AlbumNavItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+    this.badgeCount = 0,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? const Color(0xFF0066D6) : const Color(0xFF363A45);
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: SizedBox(
+          width: 74,
+          height: 48,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(icon, size: 22, color: color),
+                  if (badgeCount > 0)
+                    Positioned(
+                      right: -8,
+                      top: -5,
+                      child: Container(
+                        key: const Key('trash-badge'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFD70015),
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                        ),
+                        child: Text(
+                          '$badgeCount',
+                          key: const Key('trash-badge-text'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 bool _isPhAssetUri(String value) => value.startsWith('phasset://');
 bool _isContentUri(String value) => value.startsWith('content://');
 bool _isLocalFilePath(String value) {
@@ -335,32 +408,24 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onTap != null;
     final previewIds = widget.entry.previewMediaIds;
     final activeCoverId = previewIds.isEmpty
         ? widget.entry.coverMediaId
         : previewIds[_coverIndex % previewIds.length];
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         key: const Key('album-memory-hero-on-this-day'),
         onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         child: Ink(
-          height: 184,
+          height: 104,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(8),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(8),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -393,31 +458,29 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
                   ),
                 ),
                 Positioned(
-                  left: 18,
-                  right: 18,
-                  bottom: 16,
+                  left: 12,
+                  right: 12,
+                  bottom: 12,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '那年今日',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        enabled
-                            ? '${widget.entry.totalCount} 段回忆'
-                            : '还没有往年今日的照片',
+                        'On This Day',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        '那年今日',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
                         ),
                       ),
                     ],
@@ -453,23 +516,21 @@ class _RecentShortcutSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
         children: [
           for (var index = 0; index < entries.length; index += 1) ...[
-            if (index > 0) const SizedBox(width: 12),
-            Expanded(
-              child: SizedBox(
-                height: 124,
-                child: _RecentShortcutCard(
-                  entry: entries[index],
-                  mediaById: mediaById,
-                  previewBytesById: previewBytesById,
-                  onNeedPreview: onNeedPreview,
-                  onTap: entries[index].hasMedia
-                      ? () => onOpen(entries[index])
-                      : null,
-                ),
+            if (index > 0) const SizedBox(height: 10),
+            SizedBox(
+              height: 104,
+              child: _RecentShortcutCard(
+                entry: entries[index],
+                mediaById: mediaById,
+                previewBytesById: previewBytesById,
+                onNeedPreview: onNeedPreview,
+                onTap: entries[index].hasMedia
+                    ? () => onOpen(entries[index])
+                    : null,
               ),
             ),
           ],
@@ -499,15 +560,14 @@ class _RecentShortcutCard extends StatelessWidget {
     return InkWell(
       key: Key('album-recent-card-${entry.id}'),
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(8),
       child: Ink(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E8ED)),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -533,28 +593,31 @@ class _RecentShortcutCard extends StatelessWidget {
               Positioned(
                 left: 12,
                 right: 12,
-                bottom: 10,
+                bottom: 12,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      entry.title,
+                      _recentKicker(entry),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.92),
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${entry.totalCount} 项',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                      _recentTitle(entry),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
                       ),
                     ),
                   ],
@@ -566,29 +629,17 @@ class _RecentShortcutCard extends StatelessWidget {
       ),
     );
   }
-}
 
-abstract final class _AlbumSummaryFormatter {
-  static String summaryText(AlbumSummaryEntry entry) {
-    return '${entry.photoCount} 张照片 · ${entry.videoCount} 个视频 · '
-        '${_formatBytes(entry.knownSizeBytes)}'
-        '${entry.hasUnknownSize ? '+' : ''}';
+  String _recentKicker(AlbumSummaryEntry entry) {
+    if (entry.id == 'recent-3-days') return 'Last 3 Days';
+    if (entry.id == 'recent-7-days') return 'Last Week';
+    return entry.title;
   }
 
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) {
-      return '$bytes B';
-    }
-    final kb = bytes / 1024;
-    if (kb < 1024) {
-      return '${kb.toStringAsFixed(kb >= 10 ? 0 : 1)} KB';
-    }
-    final mb = kb / 1024;
-    if (mb < 1024) {
-      return '${mb.toStringAsFixed(mb >= 10 ? 0 : 1)} MB';
-    }
-    final gb = mb / 1024;
-    return '${gb.toStringAsFixed(gb >= 10 ? 0 : 1)} GB';
+  String _recentTitle(AlbumSummaryEntry entry) {
+    if (entry.id == 'recent-3-days') return '近三天';
+    if (entry.id == 'recent-7-days') return '近一周';
+    return entry.title;
   }
 }
 
@@ -610,38 +661,49 @@ class _MonthSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: const EdgeInsets.only(right: 14),
       child: InkWell(
         key: Key('album-month-card-${entry.id}'),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: Ink(
+          width: 242,
+          height: 150,
           decoration: BoxDecoration(
             color: const Color(0xFFFBFCFD),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE8EBF0)),
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Row(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                SizedBox(
+                KeyedSubtree(
                   key: Key('album-cover-${entry.id}'),
-                  width: 76,
-                  height: 76,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: _SummaryCover(
-                      entry: entry,
-                      mediaById: mediaById,
-                      previewBytesById: previewBytesById,
-                      onNeedPreview: onNeedPreview,
-                      dense: true,
+                  child: _SummaryCover(
+                    entry: entry,
+                    mediaById: mediaById,
+                    previewBytesById: previewBytesById,
+                    onNeedPreview: onNeedPreview,
+                    dense: true,
+                  ),
+                ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.02),
+                        Colors.black.withValues(alpha: 0.62),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 12,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -651,28 +713,24 @@ class _MonthSummaryCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 17,
+                          color: Colors.white,
+                          fontSize: 20,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 2),
                       Text(
                         _AlbumSummaryFormatter.summaryText(entry),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.92),
                           fontSize: 12,
-                          color: Color(0xFF68707A),
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  size: 20,
-                  color: Colors.black45,
                 ),
               ],
             ),
@@ -680,6 +738,30 @@ class _MonthSummaryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+abstract final class _AlbumSummaryFormatter {
+  static String summaryText(AlbumSummaryEntry entry) {
+    final size = _formatBytes(entry.knownSizeBytes);
+    final suffix = entry.hasUnknownSize ? '+' : '';
+    return '${entry.photoCount} Photos, ${entry.videoCount} Videos · $size$suffix';
+  }
+
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    final kb = bytes / 1024;
+    if (kb < 1024) {
+      return '${kb.toStringAsFixed(kb >= 10 ? 0 : 1)} KB';
+    }
+    final mb = kb / 1024;
+    if (mb < 1024) {
+      return '${mb.toStringAsFixed(mb >= 10 ? 0 : 1)} MB';
+    }
+    final gb = mb / 1024;
+    return '${gb.toStringAsFixed(gb >= 10 ? 0 : 1)} GB';
   }
 }
 
@@ -774,8 +856,6 @@ class _YearSummarySection extends StatelessWidget {
     required this.mediaById,
     required this.previewBytesById,
     required this.onNeedPreview,
-    required this.expanded,
-    required this.onToggle,
     required this.onOpenMonth,
   });
 
@@ -783,72 +863,54 @@ class _YearSummarySection extends StatelessWidget {
   final Map<String, MediaItem> mediaById;
   final Map<String, Uint8List> previewBytesById;
   final ValueChanged<MediaItem> onNeedPreview;
-  final bool expanded;
-  final VoidCallback onToggle;
   final ValueChanged<AlbumSummaryEntry> onOpenMonth;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE4E7EC)),
-        ),
-        child: Column(
-          children: [
-            InkWell(
-              key: Key('year-summary-${group.year}'),
-              borderRadius: BorderRadius.circular(8),
-              onTap: onToggle,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                            '${group.year}',
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                        ],
-                      ),
+      padding: const EdgeInsets.only(bottom: 26),
+      child: Column(
+        children: [
+          Padding(
+            key: Key('year-summary-${group.year}'),
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${group.year}',
+                    style: const TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
                     ),
-                    AnimatedRotation(
-                      turns: expanded ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 160),
-                      child: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF1D1D21),
+                ),
+              ],
             ),
-            if (expanded)
-              Column(
-                children: [
-                  const Divider(height: 1, color: Color(0xFFECEEF2)),
-                  for (final entry in group.months)
-                    _MonthSummaryCard(
-                      entry: entry,
-                      mediaById: mediaById,
-                      previewBytesById: previewBytesById,
-                      onNeedPreview: onNeedPreview,
-                      onTap: () => onOpenMonth(entry),
-                    ),
-                ],
-              ),
-          ],
-        ),
+          ),
+          SizedBox(
+            height: 150,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              children: [
+                for (final entry in group.months)
+                  _MonthSummaryCard(
+                    entry: entry,
+                    mediaById: mediaById,
+                    previewBytesById: previewBytesById,
+                    onNeedPreview: onNeedPreview,
+                    onTap: () => onOpenMonth(entry),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -214,10 +214,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('media-browser-page')), findsOneWidget);
-    expect(controller.currentMediaId, 'early');
+    expect(controller.currentMediaId, 'late');
   });
 
-  testWidgets('album summary groups months by year and toggles older years', (
+  testWidgets('album summary groups months by year without collapsing years', (
     tester,
   ) async {
     final controller = HomeController(
@@ -251,18 +251,16 @@ void main() {
     );
     expect(find.text('1 张照片 · 1 个视频 · 300 B'), findsNothing);
     expect(find.text('2025年1月'), findsNothing);
+    expect(find.text('April'), findsOneWidget);
 
-    final olderYear = find.byKey(const Key('year-summary-2025')).first;
     await tester.drag(find.byType(ListView).first, const Offset(0, -500));
     await tester.pumpAndSettle();
-    await tester.tap(olderYear);
-    await tester.pumpAndSettle();
 
-    expect(find.text('2025年1月'), findsOneWidget);
+    expect(find.text('January'), findsOneWidget);
 
     await tester.drag(find.byType(ListView).first, const Offset(0, -120));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('2025年1月'));
+    await tester.tap(find.text('January'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('media-browser-page')), findsOneWidget);
@@ -458,7 +456,7 @@ void main() {
       find.byKey(const Key('album-month-card-month-2026-04')),
       findsOneWidget,
     );
-    expect(find.textContaining('1 张照片'), findsWidgets);
+    expect(find.textContaining('1 Photos'), findsWidgets);
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(permissionsChannel, null);
@@ -632,7 +630,7 @@ void main() {
       MaterialApp(home: MediaBrowserPage(controller: controller)),
     );
 
-    expect(find.text('RePhoto'), findsOneWidget);
+    expect(find.text('RePhoto'), findsNothing);
     // When filter is 'All Time', no filter label in AppBar
     expect(find.text('All Time'), findsNothing);
   });
@@ -723,10 +721,10 @@ void main() {
     final activeIcon = tester.widget<Icon>(
       find.descendant(
         of: find.byKey(const Key('browse-mode-btn')),
-        matching: find.byIcon(Icons.format_list_numbered),
+        matching: find.byIcon(Icons.format_list_numbered_rounded),
       ),
     );
-    expect(activeIcon.color, Colors.white);
+    expect(activeIcon.color, const Color(0xFF0066D6));
   });
 
   testWidgets('trash badge is shown only when trash has items', (tester) async {

@@ -186,7 +186,7 @@ class HomeController extends ChangeNotifier {
                     id:
                         'month-${month.year.toString().padLeft(4, '0')}-'
                         '${month.month.toString().padLeft(2, '0')}',
-                    title: '${month.year}年${month.month}月',
+                    title: _monthTitle(month.month),
                     start: month,
                     end: nextMonth.subtract(const Duration(milliseconds: 1)),
                   );
@@ -954,7 +954,7 @@ class HomeController extends ChangeNotifier {
         if (rightDate == null) {
           return -1;
         }
-        final dateCompare = leftDate.compareTo(rightDate);
+        final dateCompare = rightDate.compareTo(leftDate);
         if (dateCompare != 0) {
           return dateCompare;
         }
@@ -1262,6 +1262,27 @@ class HomeController extends ChangeNotifier {
       return dateCompare;
     }
     return left.id.compareTo(right.id);
+  }
+
+  static String _monthTitle(int month) {
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    if (month < 1 || month > 12) {
+      return '$month月';
+    }
+    return monthNames[month - 1];
   }
 
   DateTime? _laterDate(DateTime? a, DateTime? b) {

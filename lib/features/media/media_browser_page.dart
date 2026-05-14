@@ -37,6 +37,15 @@ class MediaBrowserPage extends StatefulWidget {
 
 enum _DragDirection { none, horizontal, vertical }
 
+class _ActionDivider extends StatelessWidget {
+  const _ActionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, height: 34, color: const Color(0xFFEDEAF0));
+  }
+}
+
 class _MediaBrowserPageState extends State<MediaBrowserPage>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -149,16 +158,17 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           children: [
             Scaffold(
               key: _scaffoldKey,
+              backgroundColor: const Color(0xFFFFFAFD),
               drawer: _buildSideMenu(),
               appBar: AppBar(
-                backgroundColor: Colors.transparent,
+                backgroundColor: const Color(0xFFFFFAFD),
                 foregroundColor: Colors.black87,
                 elevation: 0,
                 titleSpacing: 0,
                 leading: IconButton(
-                  tooltip: 'Menu',
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                  tooltip: 'Back',
+                  icon: const Icon(Icons.arrow_back_rounded, size: 28),
+                  onPressed: () => Navigator.of(context).maybePop(),
                 ),
                 title: _buildAppBarTitle(),
                 actions: [
@@ -204,6 +214,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
                 ],
               ),
               body: Stack(
@@ -248,7 +259,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                             ),
                           Expanded(
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                               child: _buildMediaAreaWithGestures(),
                             ),
                           ),
@@ -273,11 +284,44 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   Widget _buildAppBarTitle() {
     return GestureDetector(
       onTap: () => _scaffoldKey.currentState?.openDrawer(),
-      child: const Text(
-        'RePhoto',
-        style: TextStyle(fontWeight: FontWeight.w600),
+      child: Tooltip(
+        message: 'Menu',
+        child: Text(
+          _browserTitle(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF1D1D21),
+            fontSize: 25,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
       ),
     );
+  }
+
+  String _browserTitle() {
+    final current = _controller.currentMedia;
+    final createdAt = current?.createdAt;
+    if (createdAt == null) {
+      return 'RePhoto';
+    }
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${months[createdAt.month - 1]} ${createdAt.year}';
   }
 
   Widget _buildMediaAreaWithGestures() {
@@ -336,102 +380,85 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                     ? _buildEndStatusPreview()
                     : showEmptyCard
                     ? _buildStatusPreview('当前条件下暂无可显示的照片')
-                    : Container(
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: deleteProgress > 0
-                                  ? Colors.red.withValues(
-                                      alpha: 0.15 * deleteProgress,
-                                    )
-                                  : Colors.black12,
-                              blurRadius: 24 + 12 * deleteProgress,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Media Content OR Loading state
-                            Flexible(
-                              child: media == null
-                                  ? const Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 48,
-                                        vertical: 80,
-                                      ),
-                                      child: CircularProgressIndicator(
-                                        color: Colors.black26,
-                                      ),
-                                    )
-                                  : _buildCurrentMediaPreview(),
-                            ),
-                            // White Frame Bottom (Metadata Chips)
-                            if (media != null)
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.only(
-                                  left: 16,
-                                  right: 16,
-                                  bottom: 20,
-                                  top: 8,
-                                ),
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.vertical(
-                                    bottom: Radius.circular(16),
-                                  ),
-                                ),
-                                child: Wrap(
-                                  alignment: WrapAlignment.center,
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    if (hasDate)
-                                      _buildFilterChip(
-                                        key: const Key('current-day-chip'),
-                                        icon: Icons.calendar_today_outlined,
-                                        label: _formatDate(media.createdAt!),
-                                        active: _controller.hasOverlayDayFilter,
-                                        onTap: _toggleCurrentDayMode,
-                                      ),
-                                    if (hasDevice)
-                                      _buildFilterChip(
-                                        key: const Key('current-device-chip'),
-                                        icon: Icons.photo_camera_outlined,
-                                        label: _compactDeviceLabel(
-                                          _controller.currentDeviceModel!,
-                                        ),
-                                        tooltip:
-                                            _controller.currentDeviceModel!,
-                                        active: _isCurrentDeviceMode,
-                                        onTap: _toggleCurrentDeviceMode,
-                                      ),
-                                    if (hasLocation)
-                                      _buildFilterChip(
-                                        key: const Key('location-filter-btn'),
-                                        icon: Icons.place_outlined,
-                                        label: _readableLocation(
-                                          media.locationKey,
-                                        )!,
-                                        active: _isCurrentLocationMode,
-                                        onTap: () => unawaited(
-                                          _toggleCurrentLocationMode(),
-                                        ),
-                                      ),
-                                  ],
-                                ),
+                    : Align(
+                        alignment: Alignment.center,
+                        child: Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.sizeOf(context).width - 32,
+                            maxHeight: MediaQuery.sizeOf(context).height * 0.62,
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: deleteProgress > 0
+                                    ? Colors.red.withValues(
+                                        alpha: 0.15 * deleteProgress,
+                                      )
+                                    : Colors.black12,
+                                blurRadius: 24 + 12 * deleteProgress,
+                                offset: const Offset(0, 12),
                               ),
-                          ],
+                            ],
+                          ),
+                          child: media == null
+                              ? const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 48,
+                                    vertical: 80,
+                                  ),
+                                  child: CircularProgressIndicator(
+                                    color: Colors.black26,
+                                  ),
+                                )
+                              : _buildCurrentMediaPreview(),
                         ),
                       ),
               ),
             ),
           ),
+          if (media != null && (hasDate || hasLocation || hasDevice))
+            Positioned(
+              top: 8,
+              left: 42,
+              right: 42,
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 18,
+                runSpacing: 8,
+                children: [
+                  if (hasDate)
+                    _buildFilterChip(
+                      key: const Key('current-day-chip'),
+                      icon: Icons.calendar_today_outlined,
+                      label: _formatDate(media.createdAt!),
+                      active: _controller.hasOverlayDayFilter,
+                      onTap: _toggleCurrentDayMode,
+                    ),
+                  if (hasLocation)
+                    _buildFilterChip(
+                      key: const Key('location-filter-btn'),
+                      icon: Icons.place_outlined,
+                      label: _readableLocation(media.locationKey)!,
+                      active: _isCurrentLocationMode,
+                      onTap: () => unawaited(_toggleCurrentLocationMode()),
+                    ),
+                  if (hasDevice)
+                    _buildFilterChip(
+                      key: const Key('current-device-chip'),
+                      icon: Icons.phone_iphone_rounded,
+                      label: _compactDeviceLabel(
+                        _controller.currentDeviceModel!,
+                      ),
+                      tooltip: _controller.currentDeviceModel!,
+                      active: _isCurrentDeviceMode,
+                      onTap: _toggleCurrentDeviceMode,
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -499,34 +526,60 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
 
   Widget _buildBottomActionBar() {
     return Container(
-      padding: const EdgeInsets.only(bottom: 24, top: 8),
+      padding: const EdgeInsets.fromLTRB(42, 10, 42, 28),
       color: Colors.transparent,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildBottomActionIcon(
-            key: const Key('browse-mode-btn'),
-            icon: _controller.browseMode == BrowseMode.random
-                ? Icons.shuffle
-                : Icons.format_list_numbered,
-            active: _controller.browseMode == BrowseMode.sequential,
-            onTap: _toggleBrowseMode,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(36),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            height: 74,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(36),
+              border: Border.all(color: const Color(0xFFEDEAF0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildBottomActionIcon(
+                    key: const Key('browse-mode-btn'),
+                    icon: _controller.browseMode == BrowseMode.random
+                        ? Icons.shuffle_rounded
+                        : Icons.format_list_numbered_rounded,
+                    active: _controller.browseMode == BrowseMode.sequential,
+                    onTap: _toggleBrowseMode,
+                  ),
+                ),
+                const _ActionDivider(),
+                Expanded(
+                  child: _buildBottomActionIcon(
+                    key: const Key('video-only-btn'),
+                    icon: Icons.movie_creation_outlined,
+                    active: _controller.videoOnlyEnabled,
+                    onTap: _toggleVideoOnlyMode,
+                  ),
+                ),
+                const _ActionDivider(),
+                Expanded(
+                  child: _buildBottomActionIcon(
+                    key: const Key('browser-more-btn'),
+                    icon: Icons.share_outlined,
+                    active: false,
+                    onTap: _showBrowserMoreMenu,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(width: 32),
-          _buildBottomActionIcon(
-            key: const Key('video-only-btn'),
-            icon: Icons.videocam_outlined,
-            active: _controller.videoOnlyEnabled,
-            onTap: _toggleVideoOnlyMode,
-          ),
-          const SizedBox(width: 32),
-          _buildBottomActionIcon(
-            key: const Key('browser-more-btn'),
-            icon: Icons.more_horiz_rounded,
-            active: false,
-            onTap: _showBrowserMoreMenu,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -669,30 +722,11 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     required bool active,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
+    final color = active ? const Color(0xFF0066D6) : const Color(0xFF4E5360);
+    return InkWell(
       key: key,
       onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: active
-                  ? Colors.black87
-                  : Colors.black.withValues(alpha: 0.05),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: active ? Colors.white : Colors.black87,
-            ),
-          ),
-        ),
-      ),
+      child: SizedBox.expand(child: Icon(icon, size: 34, color: color)),
     );
   }
 
@@ -709,14 +743,21 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? const Color(0xFF1F2937) : const Color(0xFFF0F2F4),
-          borderRadius: BorderRadius.circular(18),
+          color: active ? const Color(0xFF0066D6) : Colors.white,
+          borderRadius: BorderRadius.circular(7),
           border: Border.all(
-            color: active ? const Color(0xFF1F2937) : const Color(0xFFE2E7EC),
+            color: active ? const Color(0xFF0066D6) : const Color(0xFFE9E6EC),
             width: 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -724,15 +765,16 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
             Icon(
               icon,
               size: 14,
-              color: active ? Colors.white : const Color(0xFF5A616A),
+              color: active ? Colors.white : const Color(0xFF444A56),
             ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 color: active ? Colors.white : const Color(0xFF3C434C),
-                fontSize: 12,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1635,7 +1677,11 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     }
 
     unawaited(_ensureMobilePreviewBytes(media));
-    final provider = _buildImageProvider(media.pathOrUri, mediaId: media.id);
+    final provider = _buildImageProvider(
+      media.pathOrUri,
+      mediaId: media.id,
+      preferOriginalFile: true,
+    );
     if (media.type == MediaType.photo && provider != null) {
       unawaited(_ensurePhotoAspectRatio(media));
       final aspectRatio = _photoAspectRatios[media.id] ?? 3 / 4;
@@ -1644,31 +1690,49 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         minScale: 1,
         maxScale: 4,
         panEnabled: false,
-        child: AspectRatio(
-          key: const Key('current-media-preview'),
-          aspectRatio: aspectRatio,
-          child: Image(
-            image: provider,
-            fit: BoxFit.cover,
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-              if (wasSynchronouslyLoaded) return child;
-              return AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: frame != null
-                    ? child
-                    : const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(48),
-                          child: CircularProgressIndicator(
-                            color: Colors.black12,
-                            strokeWidth: 2,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : MediaQuery.sizeOf(context).width - 32;
+            final maxHeight = constraints.maxHeight.isFinite
+                ? constraints.maxHeight
+                : MediaQuery.sizeOf(context).height * 0.62;
+            var width = maxWidth;
+            var height = width / aspectRatio;
+            if (height > maxHeight) {
+              height = maxHeight;
+              width = height * aspectRatio;
+            }
+            return SizedBox(
+              key: const Key('current-media-preview'),
+              width: width,
+              height: height,
+              child: Image(
+                image: provider,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded) return child;
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: frame != null
+                        ? child
+                        : const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(48),
+                              child: CircularProgressIndicator(
+                                color: Colors.black12,
+                                strokeWidth: 2,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-              );
-            },
-            errorBuilder: (_, __, ___) => _buildPlaceholderCard(),
-          ),
+                  );
+                },
+                errorBuilder: (_, __, ___) => _buildPlaceholderCard(),
+              ),
+            );
+          },
         ),
       );
     }
@@ -1683,9 +1747,16 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   ImageProvider<Object>? _buildImageProvider(
     String? pathOrUri, {
     String? mediaId,
+    bool preferOriginalFile = false,
   }) {
     if (pathOrUri == null || pathOrUri.isEmpty) {
       return null;
+    }
+    if (preferOriginalFile && _isLocalFilePath(pathOrUri)) {
+      final localPath = pathOrUri.startsWith('file://')
+          ? Uri.parse(pathOrUri).toFilePath()
+          : pathOrUri;
+      return FileImage(File(localPath));
     }
     if (mediaId != null && _canLoadPlatformPreview(pathOrUri)) {
       final bytes = _mobilePreviewBytes[mediaId];

@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/rephoto.iml" filepath="$PROJECT_DIR$/.idea/rephoto.iml" />
+      <module fileurl="file://$PROJECT_DIR$/rephoto.iml" filepath="$PROJECT_DIR$/rephoto.iml" />
+      <module fileurl="file://$PROJECT_DIR$/android/rephoto_android.iml" filepath="$PROJECT_DIR$/android/rephoto_android.iml" />
     </modules>
   </component>
 </project>

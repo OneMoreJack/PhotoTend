@@ -1,1 +1,16 @@
 .worktrees/
+
+# Flutter/Dart/Pub
+.dart_tool/
+.packages
+.pub/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# Build outputs
+build/
+
+# IDE
+.idea/
+*.iml

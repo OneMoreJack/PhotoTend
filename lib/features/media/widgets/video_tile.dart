@@ -26,6 +26,8 @@ class VideoTile extends StatefulWidget {
     this.preloadedController,
     this.showOverlayControls = true,
     this.enableLongPressBoost = true,
+    this.onScrubStart,
+    this.onScrubEnd,
   });
 
   final String uri;
@@ -33,6 +35,8 @@ class VideoTile extends StatefulWidget {
   final VideoPlayerController? preloadedController;
   final bool showOverlayControls;
   final bool enableLongPressBoost;
+  final VoidCallback? onScrubStart;
+  final VoidCallback? onScrubEnd;
 
   @override
   State<VideoTile> createState() => _VideoTileState();
@@ -148,68 +152,90 @@ class _VideoTileState extends State<VideoTile> {
       onLongPressEnd: widget.enableLongPressBoost
           ? (_) => _setBoostPlayback(false)
           : null,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox.expand(
-            child: FittedBox(
-              fit: BoxFit.contain,
-              child: SizedBox.fromSize(
-                size: controller.value.size,
-                child: VideoPlayer(controller),
-              ),
-            ),
-          ),
-          if (widget.showOverlayControls && !controller.value.isPlaying)
-            IgnorePointer(
-              child: Container(
-                key: const Key('video-play-overlay'),
-                width: 64,
-                height: 64,
-                decoration: const BoxDecoration(
-                  color: Color(0x99000000),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  size: 40,
-                  color: Colors.white,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox.expand(
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox.fromSize(
+                    size: controller.value.size,
+                    child: VideoPlayer(controller),
+                  ),
                 ),
               ),
-            ),
-          if (widget.showOverlayControls)
-            Positioned(
-              top: 12,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: ValueListenableBuilder<VideoPlayerValue>(
-                  valueListenable: controller,
-                  builder: (context, value, _) {
-                    return Row(
-                      key: const Key('video-overlay-row'),
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildOverlayBadge(
-                          key: const Key('video-time-label'),
-                          label:
-                              '${_formatDuration(value.position)} / ${_formatDuration(value.duration)}',
-                        ),
-                        if (_isBoosting) ...[
-                          const SizedBox(width: 8),
-                          _buildOverlayBadge(
-                            key: const Key('video-speed-label'),
-                            label: '2x',
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ],
-                      ],
-                    );
-                  },
+              if (widget.showOverlayControls && !controller.value.isPlaying)
+                IgnorePointer(
+                  child: Container(
+                    key: const Key('video-play-overlay'),
+                    width: 64,
+                    height: 64,
+                    decoration: const BoxDecoration(
+                      color: Color(0x99000000),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      size: 40,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-        ],
+              if (widget.showOverlayControls)
+                Positioned(
+                  top: 12,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: ValueListenableBuilder<VideoPlayerValue>(
+                      valueListenable: controller,
+                      builder: (context, value, _) {
+                        return Row(
+                          key: const Key('video-overlay-row'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildOverlayBadge(
+                              key: const Key('video-time-label'),
+                              label:
+                                  '${_formatDuration(value.position)} / ${_formatDuration(value.duration)}',
+                            ),
+                            if (_isBoosting) ...[
+                              const SizedBox(width: 8),
+                              _buildOverlayBadge(
+                                key: const Key('video-speed-label'),
+                                label: '2x',
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              if (widget.showOverlayControls)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 74,
+                  child: ValueListenableBuilder<VideoPlayerValue>(
+                    valueListenable: controller,
+                    builder: (context, value, _) {
+                      return _VideoProgressBar(
+                        controller: controller,
+                        value: value,
+                        onScrubStart: widget.onScrubStart,
+                        onScrubEnd: widget.onScrubEnd,
+                      );
+                    },
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -352,5 +378,124 @@ class _VideoTileState extends State<VideoTile> {
     if (mounted) {
       setState(() {});
     }
+  }
+}
+
+class _VideoProgressBar extends StatelessWidget {
+  const _VideoProgressBar({
+    required this.controller,
+    required this.value,
+    required this.onScrubStart,
+    required this.onScrubEnd,
+  });
+
+  final VideoPlayerController controller;
+  final VideoPlayerValue value;
+  final VoidCallback? onScrubStart;
+  final VoidCallback? onScrubEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = value.duration;
+    final progress = duration.inMilliseconds <= 0
+        ? 0.0
+        : (value.position.inMilliseconds / duration.inMilliseconds).clamp(
+            0.0,
+            1.0,
+          );
+    return GestureDetector(
+      key: const Key('video-progress-bar'),
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (details) =>
+          _seekFromLocalPosition(context, details.localPosition),
+      onTap: () {},
+      onHorizontalDragStart: (details) {
+        onScrubStart?.call();
+        _seekFromLocalPosition(context, details.localPosition);
+      },
+      onHorizontalDragUpdate: (details) =>
+          _seekFromLocalPosition(context, details.localPosition),
+      onHorizontalDragEnd: (_) => onScrubEnd?.call(),
+      onHorizontalDragCancel: () => onScrubEnd?.call(),
+      child: Container(
+        key: const Key('video-progress-gradient'),
+        height: 74,
+        padding: const EdgeInsets.fromLTRB(18, 34, 18, 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.black.withValues(alpha: 0),
+              Colors.black.withValues(alpha: 0.42),
+            ],
+          ),
+        ),
+        child: Center(
+          child: SizedBox(
+            height: 28,
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  key: const Key('video-progress-track'),
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.36),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                FractionallySizedBox(
+                  widthFactor: progress,
+                  child: Container(
+                    key: const Key('video-progress-fill'),
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment(progress * 2 - 1, 0),
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x66000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _seekFromLocalPosition(
+    BuildContext context,
+    Offset localPosition,
+  ) async {
+    final box = context.findRenderObject() as RenderBox?;
+    final width = box?.size.width ?? 0;
+    final duration = value.duration;
+    if (width <= 0 || duration.inMilliseconds <= 0) {
+      return;
+    }
+    final fraction = (localPosition.dx / width).clamp(0.0, 1.0);
+    final target = Duration(
+      milliseconds: (duration.inMilliseconds * fraction).round(),
+    );
+    await controller.seekTo(target);
   }
 }

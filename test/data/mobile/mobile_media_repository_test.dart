@@ -55,6 +55,7 @@ void main() {
                 'locationKey': 'CN/SH/XH',
                 'pathOrUri': 'content://media/photo_1',
                 'sizeBytes': 4096,
+                'livePhotoVideoUri': 'phlive://photo_1',
               },
               {
                 'id': 'video_1',
@@ -77,6 +78,7 @@ void main() {
     expect(items.last.type, MediaType.video);
     expect(items.first.locationKey, 'CN/SH/XH');
     expect(items.first.sizeBytes, 4096);
+    expect(items.first.livePhotoVideoUri, 'phlive://photo_1');
     expect(items.last.pathOrUri, 'content://media/video_1');
     expect(items.last.sizeBytes, 8192);
   });

@@ -121,12 +121,119 @@ void main() {
     await gesture.up();
     await tester.pump();
   });
+
+  testWidgets('video progress bar can seek playback position', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: VideoTile(uri: 'file:///tmp/a.mp4')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final progressBar = find.byKey(const Key('video-progress-bar'));
+    expect(progressBar, findsOneWidget);
+
+    final start = tester.getTopLeft(progressBar);
+    final size = tester.getSize(progressBar);
+    await tester.tapAt(Offset(start.dx + size.width * 0.5, start.dy + 4));
+    await tester.pump();
+
+    expect(fakePlatform.seekCalls, 1);
+    expect(
+      fakePlatform.lastSeek,
+      const Duration(seconds: 47, milliseconds: 500),
+    );
+  });
+
+  testWidgets('video progress bar uses bottom gradient and white progress', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: VideoTile(uri: 'file:///tmp/a.mp4')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final gradient = tester.widget<Container>(
+      find.byKey(const Key('video-progress-gradient')),
+    );
+    final gradientDecoration = gradient.decoration! as BoxDecoration;
+    expect(gradientDecoration.color, isNull);
+    expect(gradientDecoration.gradient, isA<LinearGradient>());
+
+    final fill = tester.widget<Container>(
+      find.byKey(const Key('video-progress-fill')),
+    );
+    final fillDecoration = fill.decoration! as BoxDecoration;
+    expect(fillDecoration.color, Colors.white);
+  });
+
+  testWidgets('video progress gradient is pinned to tile bottom', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            height: 620,
+            child: VideoTile(uri: 'file:///tmp/a.mp4'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final tileBottom = tester.getBottomLeft(find.byType(VideoTile)).dy;
+    final gradientBottom = tester
+        .getBottomLeft(find.byKey(const Key('video-progress-gradient')))
+        .dy;
+
+    expect(gradientBottom, closeTo(tileBottom, 1));
+  });
+
+  testWidgets('video progress drag reports scrub lifecycle', (tester) async {
+    var starts = 0;
+    var ends = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: VideoTile(
+            uri: 'file:///tmp/a.mp4',
+            onScrubStart: () => starts += 1,
+            onScrubEnd: () => ends += 1,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final progressBar = find.byKey(const Key('video-progress-bar'));
+    final start = tester.getCenter(progressBar);
+    final gesture = await tester.startGesture(start);
+    await tester.pump();
+    await gesture.moveBy(const Offset(80, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(starts, 1);
+    expect(ends, 1);
+    expect(fakePlatform.seekCalls, greaterThan(0));
+  });
 }
 
 class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
   int _nextPlayerId = 0;
   int playCalls = 0;
   int pauseCalls = 0;
+  int seekCalls = 0;
+  Duration? lastSeek;
   final Map<int, StreamController<VideoEvent>> _streams =
       <int, StreamController<VideoEvent>>{};
 
@@ -193,7 +300,10 @@ class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
       const Duration(seconds: 12);
 
   @override
-  Future<void> seekTo(int playerId, Duration position) async {}
+  Future<void> seekTo(int playerId, Duration position) async {
+    seekCalls += 1;
+    lastSeek = position;
+  }
 
   @override
   Future<void> setLooping(int playerId, bool looping) async {}

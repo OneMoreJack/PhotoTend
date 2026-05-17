@@ -138,6 +138,22 @@ void main() {
     expect(find.byKey(const Key('trash-bottom-bar')), findsOneWidget);
   });
 
+  testWidgets('unselected trash media keeps original color rendering', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: TrashPage(initialIds: ['p1', 'p2'])),
+    );
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('trash-grid-item-p1')),
+        matching: find.byType(ColorFiltered),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('grid view does not expose raw media ids as list text', (
     tester,
   ) async {

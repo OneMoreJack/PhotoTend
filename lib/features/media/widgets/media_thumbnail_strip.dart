@@ -38,8 +38,9 @@ class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
   @override
   void didUpdateWidget(MediaThumbnailStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentMediaId != widget.currentMediaId ||
-        oldWidget.items != widget.items) {
+    final selectedChanged = oldWidget.currentMediaId != widget.currentMediaId;
+    final itemIdsChanged = !_sameItemIds(oldWidget.items, widget.items);
+    if (selectedChanged || itemIdsChanged) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollSelectedThumbnail();
       });
@@ -160,5 +161,20 @@ class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
     );
+  }
+
+  bool _sameItemIds(List<MediaItem> left, List<MediaItem> right) {
+    if (identical(left, right)) {
+      return true;
+    }
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index].id != right[index].id) {
+        return false;
+      }
+    }
+    return true;
   }
 }

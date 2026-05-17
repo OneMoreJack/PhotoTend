@@ -46,6 +46,55 @@ class _ActionDivider extends StatelessWidget {
   }
 }
 
+class _MediaInfoRow extends StatelessWidget {
+  const _MediaInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF6B7280)),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 52,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF6B7280),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF1D1D21),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MediaBrowserPageState extends State<MediaBrowserPage>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -57,8 +106,6 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       MethodChannelMobileMediaRepository();
   PermanentDeleteService? _deleteService;
   String? _mobileLibraryStatusMessage;
-  bool _isCurrentLocationMode = false;
-  bool _isCurrentDeviceMode = false;
   bool _isImporting = false;
   bool _handledCurrentDrag = false;
   double _dragDx = 0;
@@ -78,6 +125,8 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   final Set<String> _mobilePreviewLoadingIds = <String>{};
   final Map<String, String> _resolvedPlayableUris = <String, String>{};
   final Set<String> _playableUriLoadingIds = <String>{};
+  MediaItem? _transitionTargetMedia;
+  MediaItem? _outgoingMedia;
 
   // ---- Gesture animation state ----
   Offset _cardOffset = Offset.zero;
@@ -326,12 +375,6 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
 
   Widget _buildMediaAreaWithGestures() {
     final media = _controller.currentMedia;
-    final hasDate = media?.createdAt != null;
-    final hasDevice = _controller.currentDeviceModel != null;
-    final hasLocation =
-        media?.locationKey != null &&
-        media!.locationKey!.isNotEmpty &&
-        _readableLocation(media.locationKey) != null;
     final showStatusCard =
         _controller.currentMediaId == null &&
         _mobileLibraryStatusMessage != null;
@@ -361,7 +404,30 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // The card itself with transform
+          if (_outgoingMedia != null)
+            _buildPreviewShell(
+              child: media == null
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 48,
+                        vertical: 80,
+                      ),
+                      child: CircularProgressIndicator(color: Colors.black26),
+                    )
+                  : _buildMediaPreviewFor(media),
+            )
+          else if (_transitionTargetMedia != null &&
+              _dragDirection == _DragDirection.horizontal)
+            Align(
+              key: const Key('transition-backdrop-preview'),
+              alignment: Alignment.center,
+              child: _buildPreviewShell(
+                child: _buildMediaPreviewFor(
+                  _transitionTargetMedia!,
+                  interactive: false,
+                ),
+              ),
+            ),
           Transform.translate(
             offset: _cardOffset,
             child: Transform.rotate(
@@ -374,92 +440,70 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                         _cardOffset.dy < 0
                     ? (1.0 - deleteProgress * 0.3).clamp(0.7, 1.0)
                     : 1.0,
-                child: showStatusCard
-                    ? _buildStatusPreview(_mobileLibraryStatusMessage!)
-                    : showEndCard
-                    ? _buildEndStatusPreview()
-                    : showEmptyCard
-                    ? _buildStatusPreview('当前条件下暂无可显示的照片')
-                    : Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.sizeOf(context).width - 32,
-                            maxHeight: MediaQuery.sizeOf(context).height * 0.62,
+                child: _outgoingMedia == null
+                    ? showStatusCard
+                          ? _buildStatusPreview(_mobileLibraryStatusMessage!)
+                          : showEndCard
+                          ? _buildEndStatusPreview()
+                          : showEmptyCard
+                          ? _buildStatusPreview('当前条件下暂无可显示的照片')
+                          : _buildPreviewShell(
+                              deleteProgress: deleteProgress,
+                              child: media == null
+                                  ? const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 48,
+                                        vertical: 80,
+                                      ),
+                                      child: CircularProgressIndicator(
+                                        color: Colors.black26,
+                                      ),
+                                    )
+                                  : _buildMediaPreviewFor(media),
+                            )
+                    : KeyedSubtree(
+                        key: const Key('outgoing-media-preview'),
+                        child: _buildPreviewShell(
+                          child: _buildMediaPreviewFor(
+                            _outgoingMedia!,
+                            interactive: false,
                           ),
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: deleteProgress > 0
-                                    ? Colors.red.withValues(
-                                        alpha: 0.15 * deleteProgress,
-                                      )
-                                    : Colors.black12,
-                                blurRadius: 24 + 12 * deleteProgress,
-                                offset: const Offset(0, 12),
-                              ),
-                            ],
-                          ),
-                          child: media == null
-                              ? const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 48,
-                                    vertical: 80,
-                                  ),
-                                  child: CircularProgressIndicator(
-                                    color: Colors.black26,
-                                  ),
-                                )
-                              : _buildCurrentMediaPreview(),
                         ),
                       ),
               ),
             ),
           ),
-          if (media != null && (hasDate || hasLocation || hasDevice))
-            Positioned(
-              top: 8,
-              left: 42,
-              right: 42,
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 18,
-                runSpacing: 8,
-                children: [
-                  if (hasDate)
-                    _buildFilterChip(
-                      key: const Key('current-day-chip'),
-                      icon: Icons.calendar_today_outlined,
-                      label: _formatDate(media.createdAt!),
-                      active: _controller.hasOverlayDayFilter,
-                      onTap: _toggleCurrentDayMode,
-                    ),
-                  if (hasLocation)
-                    _buildFilterChip(
-                      key: const Key('location-filter-btn'),
-                      icon: Icons.place_outlined,
-                      label: _readableLocation(media.locationKey)!,
-                      active: _isCurrentLocationMode,
-                      onTap: () => unawaited(_toggleCurrentLocationMode()),
-                    ),
-                  if (hasDevice)
-                    _buildFilterChip(
-                      key: const Key('current-device-chip'),
-                      icon: Icons.phone_iphone_rounded,
-                      label: _compactDeviceLabel(
-                        _controller.currentDeviceModel!,
-                      ),
-                      tooltip: _controller.currentDeviceModel!,
-                      active: _isCurrentDeviceMode,
-                      onTap: _toggleCurrentDeviceMode,
-                    ),
-                ],
-              ),
-            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewShell({
+    required Widget child,
+    double deleteProgress = 0,
+  }) {
+    return Align(
+      alignment: Alignment.center,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width - 32,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.62,
+        ),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: deleteProgress > 0
+                  ? Colors.red.withValues(alpha: 0.15 * deleteProgress)
+                  : Colors.black12,
+              blurRadius: 24 + 12 * deleteProgress,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: child,
       ),
     );
   }
@@ -573,7 +617,16 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                     key: const Key('browser-more-btn'),
                     icon: Icons.share_outlined,
                     active: false,
-                    onTap: _showBrowserMoreMenu,
+                    onTap: _handleShareButton,
+                  ),
+                ),
+                const _ActionDivider(),
+                Expanded(
+                  child: _buildBottomActionIcon(
+                    key: const Key('browser-info-btn'),
+                    icon: Icons.info_outline_rounded,
+                    active: false,
+                    onTap: _showMediaInfoSheet,
                   ),
                 ),
               ],
@@ -641,6 +694,95 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     );
   }
 
+  void _handleShareButton() {
+    final pathOrUri = _controller.currentMedia?.pathOrUri;
+    if (pathOrUri == null || pathOrUri.isEmpty) {
+      _showBrowserMoreMenu();
+      return;
+    }
+    _showShareSheet(pathOrUri);
+  }
+
+  void _showMediaInfoSheet() {
+    final media = _controller.currentMedia;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            key: const Key('media-info-sheet'),
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
+            child: media == null
+                ? const Text(
+                    '暂无照片信息',
+                    style: TextStyle(
+                      color: Color(0xFF1D1D21),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '照片信息',
+                        style: TextStyle(
+                          color: Color(0xFF1D1D21),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _MediaInfoRow(
+                        icon: Icons.calendar_today_outlined,
+                        label: '日期',
+                        value: media.createdAt == null
+                            ? '未知'
+                            : _formatDate(media.createdAt!),
+                      ),
+                      _MediaInfoRow(
+                        icon: Icons.phone_iphone_rounded,
+                        label: '设备',
+                        value: _controller.currentDeviceModel ?? '未知',
+                      ),
+                      _MediaInfoRow(
+                        icon: Icons.place_outlined,
+                        label: '地点',
+                        value: _readableLocation(media.locationKey) ?? '未知',
+                      ),
+                      _MediaInfoRow(
+                        icon: media.type == MediaType.video
+                            ? Icons.movie_creation_outlined
+                            : Icons.photo_outlined,
+                        label: '类型',
+                        value: media.type == MediaType.video ? '视频' : '照片',
+                      ),
+                      _MediaInfoRow(
+                        icon: Icons.sd_storage_outlined,
+                        label: '大小',
+                        value: _formatMediaSize(media.sizeBytes),
+                      ),
+                      if (media.pathOrUri != null &&
+                          media.pathOrUri!.isNotEmpty)
+                        _MediaInfoRow(
+                          icon: Icons.link_rounded,
+                          label: '路径',
+                          value: media.pathOrUri!,
+                        ),
+                    ],
+                  ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildThumbnailStrip() {
     final mediaById = {
       for (final item in _controller.mediaItemsByIds(
@@ -671,7 +813,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         ? _buildVideoThumbnailProvider(item)
         : _buildImageProvider(item.pathOrUri, mediaId: item.id);
     final content = provider == null
-        ? _buildThumbnailPlaceholder(item)
+        ? _buildThumbnailPlaceholder(item, loading: true)
         : Image(
             image: provider,
             fit: BoxFit.cover,
@@ -703,16 +845,21 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     return MemoryImage(bytes);
   }
 
-  Widget _buildThumbnailPlaceholder(MediaItem item) {
+  Widget _buildThumbnailPlaceholder(MediaItem item, {bool loading = false}) {
+    final icon = item.type == MediaType.video
+        ? Icons.movie_creation_outlined
+        : Icons.photo_outlined;
     if (item.type == MediaType.video) {
-      return const DecoratedBox(
-        decoration: BoxDecoration(color: Color(0xFF2D333A)),
-        child: SizedBox.expand(),
+      return DecoratedBox(
+        key: loading ? Key('media-thumbnail-loading-${item.id}') : null,
+        decoration: const BoxDecoration(color: Color(0xFF2D333A)),
+        child: Center(child: Icon(icon, color: Colors.white54, size: 18)),
       );
     }
     return Container(
+      key: loading ? Key('media-thumbnail-loading-${item.id}') : null,
       color: const Color(0xFFE8EBEF),
-      child: const Icon(Icons.photo_outlined, color: Colors.black45, size: 20),
+      child: Center(child: Icon(icon, color: Colors.black45, size: 20)),
     );
   }
 
@@ -728,65 +875,6 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       onTap: onTap,
       child: SizedBox.expand(child: Icon(icon, size: 34, color: color)),
     );
-  }
-
-  Widget _buildFilterChip({
-    required Key key,
-    required IconData icon,
-    required String label,
-    required bool active,
-    required VoidCallback onTap,
-    String? tooltip,
-  }) {
-    final chip = GestureDetector(
-      key: key,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? const Color(0xFF0066D6) : Colors.white,
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(
-            color: active ? const Color(0xFF0066D6) : const Color(0xFFE9E6EC),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: active ? Colors.white : const Color(0xFF444A56),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: active ? Colors.white : const Color(0xFF3C434C),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-    if (tooltip == null || tooltip.isEmpty) {
-      return chip;
-    }
-    return Tooltip(message: tooltip, child: chip);
   }
 
   void _onPointerDown(PointerDownEvent event) {
@@ -825,6 +913,11 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         _dragDirection = _dragDx.abs() > _dragDy.abs()
             ? _DragDirection.horizontal
             : _DragDirection.vertical;
+        if (_dragDirection == _DragDirection.horizontal) {
+          _setTransitionTargetForHorizontalDrag(_dragDx);
+        } else {
+          _transitionTargetMedia = null;
+        }
       } else {
         return; // Not enough movement yet to determine direction
       }
@@ -849,6 +942,10 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     _lastPointerPosition = null;
 
     if (_isFlyingOut) return;
+    if (_handledCurrentDrag) {
+      _startSnapBack();
+      return;
+    }
 
     final dir = _dragDirection;
     final offset = _cardOffset;
@@ -871,17 +968,17 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       if (_controller.currentMediaId == null) {
         _startSnapBack();
       } else {
-        // Swipe left → next photo
-        _startFlyOut(Offset(-MediaQuery.of(context).size.width, 0), () {
-          _controller.onSwipeLeftRandom();
-        });
+        _startHorizontalFlyOut(
+          Offset(-MediaQuery.of(context).size.width, 0),
+          _controller.onSwipeLeftRandom,
+        );
       }
     } else if (dir == _DragDirection.horizontal &&
         offset.dx > _swipeThreshold) {
-      // Swipe right → previous photo
-      _startFlyOut(Offset(MediaQuery.of(context).size.width, 0), () {
-        _controller.onSwipeRightPrevious();
-      });
+      _startHorizontalFlyOut(
+        Offset(MediaQuery.of(context).size.width, 0),
+        _controller.onSwipeRightPrevious,
+      );
     } else {
       // Not enough → snap back
       _startSnapBack();
@@ -903,10 +1000,52 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     _dragDx = 0;
     _dragDy = 0;
     _dragDirection = _DragDirection.none;
+    _transitionTargetMedia = null;
+    _outgoingMedia = null;
+  }
+
+  void _handleVideoScrubStart() {
+    _handledCurrentDrag = true;
+    _dragDx = 0;
+    _dragDy = 0;
+    _dragDirection = _DragDirection.none;
+    _transitionTargetMedia = null;
+    _outgoingMedia = null;
+    if (_cardOffset != Offset.zero && mounted) {
+      setState(() => _cardOffset = Offset.zero);
+    }
+  }
+
+  void _setTransitionTargetForHorizontalDrag(double dragDx) {
+    final target = dragDx < 0
+        ? _controller.prepareUpcomingMediaForPreload()
+        : _controller.preparePreviousMediaForPreload();
+    _transitionTargetMedia = target;
+    if (target != null) {
+      unawaited(
+        _warmUpcomingMedia(
+          target,
+          version: ++_preloadVersion,
+          initializeVideoController: true,
+        ),
+      );
+    }
   }
 
   // ---- Fly-out and snap-back animations ----
   VoidCallback? _flyOutCallback;
+
+  void _startHorizontalFlyOut(Offset target, VoidCallback switchCurrent) {
+    final outgoing = _controller.currentMedia;
+    if (outgoing == null) {
+      _startSnapBack();
+      return;
+    }
+    _outgoingMedia = outgoing;
+    _transitionTargetMedia = null;
+    switchCurrent();
+    _startFlyOut(target, () {});
+  }
 
   void _startFlyOut(Offset target, VoidCallback onComplete) {
     _isFlyingOut = true;
@@ -947,6 +1086,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         _isFlyingOut = false;
         _flyAnimation = null;
         _dragDirection = _DragDirection.none;
+        _outgoingMedia = null;
       });
       _resetPanState();
     }
@@ -1135,9 +1275,6 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     if (result != null) {
       _controller.updateTrash(result.trashIds);
       _controller.removeMediaItems(result.permanentlyDeletedIds);
-      if (_controller.selectedLocationKey == null && _isCurrentLocationMode) {
-        setState(() => _isCurrentLocationMode = false);
-      }
     }
   }
 
@@ -1285,60 +1422,12 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     }
   }
 
-  void _toggleCurrentDeviceMode() {
-    if (_isCurrentDeviceMode) {
-      _controller.clearDeviceFilter();
-      setState(() => _isCurrentDeviceMode = false);
-      return;
-    }
-    final model = _controller.currentDeviceModel;
-    if (model == null) {
-      return;
-    }
-    _controller.applyDeviceFilterKeepingCurrent(model);
-    setState(() => _isCurrentDeviceMode = true);
-  }
-
-  void _toggleCurrentDayMode() {
-    if (_controller.hasOverlayDayFilter) {
-      _controller.clearOverlayDayFilter();
-      return;
-    }
-    final media = _controller.currentMedia;
-    if (media?.createdAt == null) {
-      return;
-    }
-    _controller.applyOverlayDayFilter(media!.createdAt!);
-  }
-
-  Future<void> _toggleCurrentLocationMode() async {
-    if (_isCurrentLocationMode) {
-      _controller.setLocationFilter(null);
-      setState(() => _isCurrentLocationMode = false);
-      return;
-    }
-    final resolved = _controller.currentMedia?.locationKey?.trim();
-    if (resolved == null || resolved.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('该照片暂无位置信息')));
-      return;
-    }
-    _controller.applyCurrentLocationFilterKeepingCurrent();
-    setState(() => _isCurrentLocationMode = true);
-  }
-
   void _toggleVideoOnlyMode() {
     _controller.toggleVideoOnlyMode();
   }
 
   void _resetFiltersAndRestart() {
     _controller.resetAllFiltersAndRestart();
-    setState(() {
-      _isCurrentLocationMode = false;
-      _isCurrentDeviceMode = false;
-    });
   }
 
   void _toggleBrowseMode() {
@@ -1352,12 +1441,21 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     return '$year-$month-$day';
   }
 
-  String _compactDeviceLabel(String raw) {
-    final value = raw.trim();
-    if (value.characters.length <= 16) {
-      return value;
+  String _formatMediaSize(int? bytes) {
+    if (bytes == null || bytes <= 0) {
+      return '未知';
     }
-    return '${value.characters.take(15)}…';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var value = bytes.toDouble();
+    var unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+    final formatted = value >= 10 || unitIndex == 0
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$formatted ${units[unitIndex]}';
   }
 
   String? _readableLocation(String? raw) {
@@ -1645,11 +1743,44 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     }
   }
 
-  Widget _buildCurrentMediaPreview() {
-    final media = _controller.currentMedia;
-    if (media == null) {
-      return const Center(child: Text('No media in current filter'));
+  Widget _buildMediaPreviewFor(MediaItem media, {bool interactive = true}) {
+    final playableLivePhotoUri = media.livePhotoVideoUri;
+    if (playableLivePhotoUri != null && playableLivePhotoUri.isNotEmpty) {
+      unawaited(_ensureMobilePreviewBytes(media));
+      unawaited(
+        _ensurePlayableMediaUri(media, sourceUri: playableLivePhotoUri),
+      );
+      final thumbnailProvider = _buildImageProvider(
+        media.pathOrUri,
+        mediaId: media.id,
+      );
+      final playableUri = _resolvedPlayableUris[playableLivePhotoUri];
+      final requiresResolution = playableLivePhotoUri.startsWith('phlive://');
+      if (requiresResolution && playableUri == null) {
+        return _buildVideoPlaceholder(thumbnailProvider);
+      }
+      final videoTile = VideoTile(
+        uri: playableUri ?? playableLivePhotoUri,
+        thumbnailProvider: thumbnailProvider,
+        preloadedController: _takePreloadedController(
+          playableUri ?? playableLivePhotoUri,
+        ),
+        onScrubStart: interactive ? _handleVideoScrubStart : null,
+        showOverlayControls: interactive,
+        enableLongPressBoost: interactive,
+      );
+      if (!interactive) {
+        return _buildVideoPlaceholder(thumbnailProvider);
+      }
+      return InteractiveViewer(
+        key: ValueKey<String>('zoom-${media.id}'),
+        minScale: 1,
+        maxScale: 4,
+        panEnabled: false,
+        child: videoTile,
+      );
     }
+
     if (media.type == MediaType.video && media.pathOrUri != null) {
       unawaited(_ensureMobilePreviewBytes(media));
       unawaited(_ensurePlayableMediaUri(media));
@@ -1661,18 +1792,23 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       if (_isPhAssetUri(media.pathOrUri!) && playableUri == null) {
         return _buildVideoPlaceholder(thumbnailProvider);
       }
+      if (!interactive) {
+        return _buildVideoPlaceholder(thumbnailProvider);
+      }
+      final videoTile = VideoTile(
+        uri: playableUri ?? media.pathOrUri!,
+        thumbnailProvider: thumbnailProvider,
+        preloadedController: _takePreloadedController(
+          playableUri ?? media.pathOrUri!,
+        ),
+        onScrubStart: _handleVideoScrubStart,
+      );
       return InteractiveViewer(
         key: ValueKey<String>('zoom-${media.id}'),
         minScale: 1,
         maxScale: 4,
         panEnabled: false,
-        child: VideoTile(
-          uri: playableUri ?? media.pathOrUri!,
-          thumbnailProvider: thumbnailProvider,
-          preloadedController: _takePreloadedController(
-            playableUri ?? media.pathOrUri!,
-          ),
-        ),
+        child: videoTile,
       );
     }
 
@@ -1685,55 +1821,59 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     if (media.type == MediaType.photo && provider != null) {
       unawaited(_ensurePhotoAspectRatio(media));
       final aspectRatio = _photoAspectRatios[media.id] ?? 3 / 4;
+      final photoPreview = LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : MediaQuery.sizeOf(context).width - 32;
+          final maxHeight = constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : MediaQuery.sizeOf(context).height * 0.62;
+          var width = maxWidth;
+          var height = width / aspectRatio;
+          if (height > maxHeight) {
+            height = maxHeight;
+            width = height * aspectRatio;
+          }
+          return SizedBox(
+            key: const Key('current-media-preview'),
+            width: width,
+            height: height,
+            child: Image(
+              image: provider,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                if (wasSynchronouslyLoaded) return child;
+                return AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: frame != null
+                      ? child
+                      : const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(48),
+                            child: CircularProgressIndicator(
+                              color: Colors.black12,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        ),
+                );
+              },
+              errorBuilder: (_, __, ___) => _buildPlaceholderCard(),
+            ),
+          );
+        },
+      );
+      if (!interactive) {
+        return photoPreview;
+      }
       return InteractiveViewer(
         key: ValueKey<String>('zoom-${media.id}'),
         minScale: 1,
         maxScale: 4,
         panEnabled: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final maxWidth = constraints.maxWidth.isFinite
-                ? constraints.maxWidth
-                : MediaQuery.sizeOf(context).width - 32;
-            final maxHeight = constraints.maxHeight.isFinite
-                ? constraints.maxHeight
-                : MediaQuery.sizeOf(context).height * 0.62;
-            var width = maxWidth;
-            var height = width / aspectRatio;
-            if (height > maxHeight) {
-              height = maxHeight;
-              width = height * aspectRatio;
-            }
-            return SizedBox(
-              key: const Key('current-media-preview'),
-              width: width,
-              height: height,
-              child: Image(
-                image: provider,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                  if (wasSynchronouslyLoaded) return child;
-                  return AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: frame != null
-                        ? child
-                        : const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(48),
-                              child: CircularProgressIndicator(
-                                color: Colors.black12,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          ),
-                  );
-                },
-                errorBuilder: (_, __, ___) => _buildPlaceholderCard(),
-              ),
-            );
-          },
-        ),
+        child: photoPreview,
       );
     }
 
@@ -1816,13 +1956,17 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     }
   }
 
-  Future<void> _ensurePlayableMediaUri(MediaItem media) async {
-    final pathOrUri = media.pathOrUri;
-    if (media.type != MediaType.video ||
-        pathOrUri == null ||
+  Future<void> _ensurePlayableMediaUri(
+    MediaItem media, {
+    String? sourceUri,
+  }) async {
+    final pathOrUri = sourceUri ?? media.pathOrUri;
+    final cacheKey = sourceUri ?? media.id;
+    if (pathOrUri == null ||
         pathOrUri.isEmpty ||
-        _resolvedPlayableUris.containsKey(media.id) ||
-        !_playableUriLoadingIds.add(media.id)) {
+        (media.type != MediaType.video && sourceUri == null) ||
+        _resolvedPlayableUris.containsKey(cacheKey) ||
+        !_playableUriLoadingIds.add(cacheKey)) {
       return;
     }
 
@@ -1834,12 +1978,12 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         return;
       }
       setState(() {
-        _resolvedPlayableUris[media.id] = resolved;
+        _resolvedPlayableUris[cacheKey] = resolved;
       });
     } catch (_) {
       // Best-effort resolution only.
     } finally {
-      _playableUriLoadingIds.remove(media.id);
+      _playableUriLoadingIds.remove(cacheKey);
     }
   }
 

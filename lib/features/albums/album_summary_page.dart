@@ -53,11 +53,11 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
           ...recentEntries,
           ...monthEntries,
         ]);
-        final recent3 = recentEntries
-            .where((entry) => entry.id == 'recent-3-days')
-            .firstOrNull;
         final recent7 = recentEntries
             .where((entry) => entry.id == 'recent-7-days')
+            .firstOrNull;
+        final allMedia = recentEntries
+            .where((entry) => entry.id == 'all-media')
             .firstOrNull;
         return Scaffold(
           backgroundColor: const Color(0xFFFFFAFD),
@@ -92,8 +92,8 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
                       ),
                       _RecentShortcutSection(
                         entries: [
-                          if (recent3 != null) recent3,
                           if (recent7 != null) recent7,
+                          if (allMedia != null) allMedia,
                         ],
                         mediaById: mediaById,
                         previewBytesById: _mobilePreviewBytes,
@@ -419,7 +419,7 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
         onTap: widget.onTap,
         borderRadius: BorderRadius.circular(8),
         child: Ink(
-          height: 104,
+          height: 156,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(8),
@@ -435,13 +435,12 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
                   switchOutCurve: Curves.easeOutCubic,
                   child: KeyedSubtree(
                     key: Key('album-memory-cover-${activeCoverId ?? 'empty'}'),
-                    child: _SummaryCover(
+                    child: _MemoryPanCover(
                       entry: widget.entry,
                       coverMediaId: activeCoverId,
                       mediaById: widget.mediaById,
                       previewBytesById: widget.previewBytesById,
                       onNeedPreview: widget.onNeedPreview,
-                      dense: false,
                     ),
                   ),
                 ),
@@ -495,6 +494,45 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
   }
 }
 
+class _MemoryPanCover extends StatelessWidget {
+  const _MemoryPanCover({
+    required this.entry,
+    required this.coverMediaId,
+    required this.mediaById,
+    required this.previewBytesById,
+    required this.onNeedPreview,
+  });
+
+  final AlbumSummaryEntry entry;
+  final String? coverMediaId;
+  final Map<String, MediaItem> mediaById;
+  final Map<String, Uint8List> previewBytesById;
+  final ValueChanged<MediaItem> onNeedPreview;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: -0.024, end: 0.024),
+      duration: const Duration(seconds: 8),
+      curve: Curves.easeInOutCubic,
+      builder: (context, offset, child) {
+        return Transform.translate(
+          offset: Offset(MediaQuery.sizeOf(context).width * offset, 0),
+          child: Transform.scale(scale: 1.08, child: child),
+        );
+      },
+      child: _SummaryCover(
+        entry: entry,
+        coverMediaId: coverMediaId,
+        mediaById: mediaById,
+        previewBytesById: previewBytesById,
+        onNeedPreview: onNeedPreview,
+        dense: false,
+      ),
+    );
+  }
+}
+
 class _RecentShortcutSection extends StatelessWidget {
   const _RecentShortcutSection({
     required this.entries,
@@ -517,20 +555,23 @@ class _RecentShortcutSection extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (var index = 0; index < entries.length; index += 1) ...[
-            if (index > 0) const SizedBox(height: 10),
-            SizedBox(
-              height: 104,
-              child: _RecentShortcutCard(
-                entry: entries[index],
-                mediaById: mediaById,
-                previewBytesById: previewBytesById,
-                onNeedPreview: onNeedPreview,
-                onTap: entries[index].hasMedia
-                    ? () => onOpen(entries[index])
-                    : null,
+            if (index > 0) const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 116,
+                child: _RecentShortcutCard(
+                  entry: entries[index],
+                  mediaById: mediaById,
+                  previewBytesById: previewBytesById,
+                  onNeedPreview: onNeedPreview,
+                  onTap: entries[index].hasMedia
+                      ? () => onOpen(entries[index])
+                      : null,
+                ),
               ),
             ),
           ],
@@ -631,14 +672,14 @@ class _RecentShortcutCard extends StatelessWidget {
   }
 
   String _recentKicker(AlbumSummaryEntry entry) {
-    if (entry.id == 'recent-3-days') return 'Last 3 Days';
     if (entry.id == 'recent-7-days') return 'Last Week';
+    if (entry.id == 'all-media') return 'Library';
     return entry.title;
   }
 
   String _recentTitle(AlbumSummaryEntry entry) {
-    if (entry.id == 'recent-3-days') return '近三天';
     if (entry.id == 'recent-7-days') return '近一周';
+    if (entry.id == 'all-media') return '所有照片';
     return entry.title;
   }
 }
@@ -719,16 +760,7 @@ class _MonthSummaryCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        _AlbumSummaryFormatter.summaryText(entry),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                      _AlbumSummaryStats(entry: entry),
                     ],
                   ),
                 ),
@@ -741,11 +773,77 @@ class _MonthSummaryCard extends StatelessWidget {
   }
 }
 
+class _AlbumSummaryStats extends StatelessWidget {
+  const _AlbumSummaryStats({required this.entry});
+
+  final AlbumSummaryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _AlbumStatItem(
+          key: Key('album-stat-photos-${entry.id}'),
+          icon: Icons.photo_outlined,
+          label: '${entry.photoCount}',
+        ),
+        const SizedBox(width: 10),
+        _AlbumStatItem(
+          key: Key('album-stat-videos-${entry.id}'),
+          icon: Icons.movie_creation_outlined,
+          label: '${entry.videoCount}',
+        ),
+        const SizedBox(width: 10),
+        Flexible(
+          child: _AlbumStatItem(
+            key: Key('album-stat-size-${entry.id}'),
+            icon: Icons.sd_storage_outlined,
+            label: _AlbumSummaryFormatter.sizeText(entry),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AlbumStatItem extends StatelessWidget {
+  const _AlbumStatItem({super.key, required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: Colors.white, size: 13),
+        const SizedBox(width: 3),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _AlbumStatItem._style,
+          ),
+        ),
+      ],
+    );
+  }
+
+  static final TextStyle _style = TextStyle(
+    color: Colors.white.withValues(alpha: 0.92),
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+  );
+}
+
 abstract final class _AlbumSummaryFormatter {
-  static String summaryText(AlbumSummaryEntry entry) {
+  static String sizeText(AlbumSummaryEntry entry) {
     final size = _formatBytes(entry.knownSizeBytes);
     final suffix = entry.hasUnknownSize ? '+' : '';
-    return '${entry.photoCount} Photos, ${entry.videoCount} Videos · $size$suffix';
+    return '$size$suffix';
   }
 
   static String _formatBytes(int bytes) {
@@ -791,7 +889,11 @@ class _SummaryCover extends StatelessWidget {
     if (provider != null) {
       return Image(
         image: provider,
+        width: double.infinity,
+        height: double.infinity,
         fit: BoxFit.cover,
+        alignment: Alignment.center,
+        gaplessPlayback: true,
         errorBuilder: (_, __, ___) => _buildPlaceholder(cover),
       );
     }
@@ -885,10 +987,6 @@ class _YearSummarySection extends StatelessWidget {
                       letterSpacing: 0,
                     ),
                   ),
-                ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: Color(0xFF1D1D21),
                 ),
               ],
             ),

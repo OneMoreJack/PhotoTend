@@ -8,6 +8,7 @@ class MediaItem {
     this.locationKey,
     this.pathOrUri,
     this.sizeBytes,
+    this.livePhotoVideoUri,
   });
 
   final String id;
@@ -16,4 +17,5 @@ class MediaItem {
   final String? locationKey;
   final String? pathOrUri;
   final int? sizeBytes;
+  final String? livePhotoVideoUri;
 }

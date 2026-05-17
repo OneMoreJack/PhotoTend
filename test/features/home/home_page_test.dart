@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +7,8 @@ import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/features/home/home_controller.dart';
 import 'package:rephoto/features/home/home_page.dart';
 import 'package:rephoto/features/media/media_browser_page.dart';
+import 'package:rephoto/features/media/widgets/video_tile.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 void main() {
   const transparentImage = <int>[
@@ -106,11 +110,11 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.byKey(const Key('album-recent-card-recent-3-days')),
+      find.byKey(const Key('album-recent-card-recent-7-days')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const Key('album-recent-card-recent-7-days')),
+      find.byKey(const Key('album-recent-card-all-media')),
       findsOneWidget,
     );
     expect(find.byKey(const Key('current-media-preview')), findsNothing);
@@ -136,11 +140,11 @@ void main() {
     );
 
     expect(
-      find.byKey(const Key('album-recent-card-recent-3-days')),
+      find.byKey(const Key('album-recent-card-recent-7-days')),
       findsOneWidget,
     );
 
-    await tester.tap(find.byKey(const Key('album-recent-card-recent-3-days')));
+    await tester.tap(find.byKey(const Key('album-recent-card-recent-7-days')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('media-browser-page')), findsOneWidget);
@@ -210,6 +214,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: HomePage(controller: controller)),
     );
+    await tester.ensureVisible(
+      find.byKey(const Key('album-month-card-month-2026-04')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('album-month-card-month-2026-04')));
     await tester.pumpAndSettle();
 
@@ -265,6 +273,136 @@ void main() {
 
     expect(find.byKey(const Key('media-browser-page')), findsOneWidget);
     expect(controller.currentMediaId, 'old');
+  });
+
+  testWidgets(
+    'album summary lays out week and all-photo shortcuts in one row',
+    (tester) async {
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'recent',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 5, 14),
+          ),
+          MediaItem(
+            id: 'older',
+            type: MediaType.video,
+            createdAt: DateTime(2026, 4, 20),
+          ),
+        ],
+        nowProvider: () => DateTime(2026, 5, 15),
+        seed: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: HomePage(controller: controller)),
+      );
+
+      expect(find.text('近三天'), findsNothing);
+      expect(find.text('近一周'), findsOneWidget);
+      expect(find.text('所有照片'), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
+
+      final weekTop = tester.getTopLeft(find.text('近一周')).dy;
+      final allTop = tester.getTopLeft(find.text('所有照片')).dy;
+      expect((weekTop - allTop).abs(), lessThan(1));
+
+      final weekRight = tester
+          .getTopRight(find.byKey(const Key('album-recent-card-recent-7-days')))
+          .dx;
+      final allLeft = tester
+          .getTopLeft(find.byKey(const Key('album-recent-card-all-media')))
+          .dx;
+      expect(weekRight, lessThan(allLeft));
+    },
+  );
+
+  testWidgets('month stats render photo video and storage as matching items', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'photo',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 1),
+          sizeBytes: 1024,
+        ),
+        MediaItem(
+          id: 'video',
+          type: MediaType.video,
+          createdAt: DateTime(2026, 5, 2),
+          sizeBytes: 2048,
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14),
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+
+    final monthCard = find.byKey(const Key('album-month-card-month-2026-05'));
+    expect(monthCard, findsOneWidget);
+    expect(
+      find.descendant(
+        of: monthCard,
+        matching: find.byKey(const Key('album-stat-photos-month-2026-05')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: monthCard,
+        matching: find.byKey(const Key('album-stat-videos-month-2026-05')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: monthCard,
+        matching: find.byKey(const Key('album-stat-size-month-2026-05')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: monthCard,
+        matching: find.byIcon(Icons.sd_storage_outlined),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('on this day hero is taller with a cover image background', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'memory',
+          type: MediaType.photo,
+          createdAt: DateTime(2025, 5, 14),
+          pathOrUri: '/tmp/mock-memory.jpg',
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14),
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+
+    final hero = find.byKey(const Key('album-memory-hero-on-this-day'));
+    expect(tester.getSize(hero).height, greaterThanOrEqualTo(150));
+
+    final image = tester.widget<Image>(
+      find.descendant(of: hero, matching: find.byType(Image)).first,
+    );
+    expect(image.fit, BoxFit.cover);
   });
 
   testWidgets('home trash button opens trash page', (tester) async {
@@ -327,6 +465,130 @@ void main() {
     controller.onSwipeDownUndoDelete();
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('trash-badge-text')), findsNothing);
+  });
+
+  testWidgets('horizontal swipe prerenders the target media behind card', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'a',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 14),
+          pathOrUri: '/tmp/a.jpg',
+        ),
+        MediaItem(
+          id: 'b',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13),
+          pathOrUri: '/tmp/b.jpg',
+        ),
+      ],
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(MediaBrowserPage)),
+    );
+    await gesture.moveBy(const Offset(-40, 0));
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('transition-backdrop-preview')),
+      findsOneWidget,
+    );
+
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('accepted horizontal swipe switches media before fly-out ends', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'a',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 14),
+          pathOrUri: '/tmp/a.jpg',
+        ),
+        MediaItem(
+          id: 'b',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13),
+          pathOrUri: '/tmp/b.jpg',
+        ),
+      ],
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+
+    final initialId = controller.currentMediaId;
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(MediaBrowserPage)),
+    );
+    await gesture.moveBy(const Offset(-120, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(controller.currentMediaId, isNot(initialId));
+    expect(find.byKey(const Key('outgoing-media-preview')), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('dragging video progress does not switch browser card', (
+    tester,
+  ) async {
+    VideoPlayerPlatform.instance = _HomeFakeVideoPlayerPlatform();
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'v1',
+          type: MediaType.video,
+          createdAt: DateTime(2026, 5, 14),
+          pathOrUri: '/tmp/v1.mp4',
+        ),
+        MediaItem(
+          id: 'p2',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13),
+          pathOrUri: '/tmp/p2.jpg',
+        ),
+      ],
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final initialId = controller.currentMediaId;
+    final progressBar = find.byKey(const Key('video-progress-bar'));
+    expect(progressBar, findsOneWidget);
+
+    final gesture = await tester.startGesture(tester.getCenter(progressBar));
+    await tester.pump();
+    await gesture.moveBy(const Offset(140, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(controller.currentMediaId, initialId);
   });
 
   testWidgets('media browser does not show the top time filter button', (
@@ -456,7 +718,7 @@ void main() {
       find.byKey(const Key('album-month-card-month-2026-04')),
       findsOneWidget,
     );
-    expect(find.textContaining('1 Photos'), findsWidgets);
+    expect(find.byIcon(Icons.photo_outlined), findsWidgets);
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(permissionsChannel, null);
@@ -536,6 +798,30 @@ void main() {
           .setMockMethodCallHandler(channel, null);
     },
   );
+
+  testWidgets('live photo preview renders playable video tile', (tester) async {
+    VideoPlayerPlatform.instance = _HomeFakeVideoPlayerPlatform();
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'live-photo',
+          type: MediaType.photo,
+          createdAt: DateTime.now(),
+          pathOrUri: 'phasset://live-photo',
+          livePhotoVideoUri: 'file:///tmp/live-photo.mov',
+        ),
+      ],
+      seed: 1,
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byType(VideoTile), findsOneWidget);
+    expect(find.byKey(const Key('video-play-overlay')), findsOneWidget);
+  });
 
   testWidgets(
     'photo preview renders image widget when Android content thumbnail bytes are available',
@@ -635,39 +921,43 @@ void main() {
     expect(find.text('All Time'), findsNothing);
   });
 
-  testWidgets(
-    'current day chip activates overlay filter without changing time filter bar',
-    (tester) async {
-      final controller = HomeController(
-        initialMediaItems: [
-          MediaItem(id: 'a', type: MediaType.photo, createdAt: DateTime.now()),
-          MediaItem(
-            id: 'b',
-            type: MediaType.photo,
-            createdAt: DateTime.now().subtract(const Duration(days: 30)),
-          ),
-        ],
-        seed: 1,
-      );
-      await tester.pumpWidget(
-        MaterialApp(home: MediaBrowserPage(controller: controller)),
-      );
+  testWidgets('media metadata is shown from the bottom info sheet', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'a',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 3, 14),
+          locationKey: 'CN/广东省/深圳市/福田区/@22.54010,114.06010',
+          pathOrUri: '/tmp/a.jpg',
+          sizeBytes: 16 * 1024 * 1024,
+        ),
+      ],
+      seed: 1,
+    );
+    controller.setDeviceModelForId('a', 'NIKON D5600');
 
-      expect(controller.selectedTimeFilter, TimeFilterPreset.all);
-      expect(controller.hasOverlayDayFilter, isFalse);
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
 
-      await tester.tap(find.byKey(const Key('current-day-chip')));
-      await tester.pumpAndSettle();
-      // Time filter bar must NOT change — overlay is independent
-      expect(controller.selectedTimeFilter, TimeFilterPreset.all);
-      expect(controller.hasOverlayDayFilter, isTrue);
+    expect(find.byKey(const Key('current-day-chip')), findsNothing);
+    expect(find.byKey(const Key('current-device-chip')), findsNothing);
+    expect(find.byKey(const Key('location-filter-btn')), findsNothing);
 
-      await tester.tap(find.byKey(const Key('current-day-chip')));
-      await tester.pumpAndSettle();
-      expect(controller.selectedTimeFilter, TimeFilterPreset.all);
-      expect(controller.hasOverlayDayFilter, isFalse);
-    },
-  );
+    await tester.tap(find.byKey(const Key('browser-info-btn')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('media-info-sheet')), findsOneWidget);
+    expect(find.text('2026-03-14'), findsOneWidget);
+    expect(find.text('NIKON D5600'), findsOneWidget);
+    expect(find.text('深圳市 · 福田区'), findsOneWidget);
+    expect(find.text('16 MB'), findsOneWidget);
+  });
 
   testWidgets('reset random pool is moved into settings page', (tester) async {
     final controller = HomeController(
@@ -704,7 +994,9 @@ void main() {
     expect(controller.videoOnlyEnabled, isTrue);
   });
 
-  testWidgets('browse mode toggle switches to sequential mode', (tester) async {
+  testWidgets('browse mode defaults to sequential and toggles to random', (
+    tester,
+  ) async {
     final controller = HomeController(
       initialMediaIds: const ['a', 'b'],
       seed: 1,
@@ -713,18 +1005,26 @@ void main() {
       MaterialApp(home: MediaBrowserPage(controller: controller)),
     );
 
-    expect(controller.browseMode, BrowseMode.random);
-    await tester.tap(find.byKey(const Key('browse-mode-btn')));
-    await tester.pumpAndSettle();
-
     expect(controller.browseMode, BrowseMode.sequential);
-    final activeIcon = tester.widget<Icon>(
+    expect(
       find.descendant(
         of: find.byKey(const Key('browse-mode-btn')),
         matching: find.byIcon(Icons.format_list_numbered_rounded),
       ),
+      findsOneWidget,
     );
-    expect(activeIcon.color, const Color(0xFF0066D6));
+
+    await tester.tap(find.byKey(const Key('browse-mode-btn')));
+    await tester.pumpAndSettle();
+
+    expect(controller.browseMode, BrowseMode.random);
+    final activeIcon = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const Key('browse-mode-btn')),
+        matching: find.byIcon(Icons.shuffle_rounded),
+      ),
+    );
+    expect(activeIcon.color, const Color(0xFF4E5360));
   });
 
   testWidgets('trash badge is shown only when trash has items', (tester) async {
@@ -797,7 +1097,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: MediaBrowserPage(controller: controller)),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.text('已浏览完当前条件下的所有照片'), findsOneWidget);
       expect(find.text('再看一遍'), findsOneWidget);
@@ -825,42 +1125,55 @@ void main() {
     expect(find.text('已浏览完当前条件下的所有照片'), findsNothing);
   });
 
-  testWidgets('bottom action buttons order is browse then video then more', (
-    tester,
-  ) async {
-    final controller = HomeController(
-      initialMediaIds: const ['a', 'b'],
-      seed: 1,
-    );
-    await tester.pumpWidget(
-      MaterialApp(home: MediaBrowserPage(controller: controller)),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'share button opens the share sheet directly when media is shareable',
+    (tester) async {
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'a',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 5, 1),
+            pathOrUri: '/tmp/a.jpg',
+          ),
+          MediaItem(
+            id: 'b',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 5, 2),
+            pathOrUri: '/tmp/b.jpg',
+          ),
+        ],
+        seed: 1,
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: MediaBrowserPage(controller: controller)),
+      );
+      await tester.pump();
 
-    final browseCenter = tester.getCenter(
-      find.byKey(const Key('browse-mode-btn')),
-    );
-    final videoCenter = tester.getCenter(
-      find.byKey(const Key('video-only-btn')),
-    );
-    final moreCenter = tester.getCenter(
-      find.byKey(const Key('browser-more-btn')),
-    );
+      final browseCenter = tester.getCenter(
+        find.byKey(const Key('browse-mode-btn')),
+      );
+      final videoCenter = tester.getCenter(
+        find.byKey(const Key('video-only-btn')),
+      );
+      final moreCenter = tester.getCenter(
+        find.byKey(const Key('browser-more-btn')),
+      );
 
-    expect(browseCenter.dx, lessThan(videoCenter.dx));
-    expect(videoCenter.dx, lessThan(moreCenter.dx));
-    expect(find.byKey(const Key('open-in-gallery-btn')), findsNothing);
+      expect(browseCenter.dx, lessThan(videoCenter.dx));
+      expect(videoCenter.dx, lessThan(moreCenter.dx));
+      expect(find.text('分享到'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('browser-more-btn')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('browser-more-btn')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.byKey(const Key('open-in-gallery-btn')), findsOneWidget);
-    expect(find.text('Settings'), findsOneWidget);
-  });
+      expect(find.text('分享到'), findsOneWidget);
+      expect(find.text('微信'), findsOneWidget);
+    },
+  );
 
-  testWidgets('geo location is displayed in location lock chip', (
-    tester,
-  ) async {
+  testWidgets('geo location is displayed in the info sheet', (tester) async {
     final controller = HomeController(
       initialMediaItems: [
         MediaItem(
@@ -875,15 +1188,18 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: MediaBrowserPage(controller: controller)),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    expect(find.byKey(const Key('location-filter-btn')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('browser-info-btn')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
     expect(find.textContaining('31.230'), findsOneWidget);
     expect(find.textContaining('121.473'), findsOneWidget);
   });
 
   testWidgets(
-    'location filter icon is hidden when current photo has no location',
+    'photo area does not show metadata chips when current photo has no location',
     (tester) async {
       final controller = HomeController(
         initialMediaItems: [
@@ -894,45 +1210,75 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: MediaBrowserPage(controller: controller)),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       expect(find.byKey(const Key('location-filter-btn')), findsNothing);
+      expect(find.byKey(const Key('current-day-chip')), findsNothing);
     },
   );
+}
 
-  testWidgets('tap location lock chip toggles location filter on and off', (
-    tester,
-  ) async {
-    final controller = HomeController(
-      initialMediaItems: [
-        MediaItem(
-          id: 'a',
-          type: MediaType.photo,
-          createdAt: DateTime.now(),
-          locationKey: 'CN/广东省/深圳市/福田区/@22.54010,114.06010',
-        ),
-        MediaItem(
-          id: 'b',
-          type: MediaType.photo,
-          createdAt: DateTime.now(),
-          locationKey: 'CN/广东省/深圳市/福田区/@22.54321,114.05888',
-        ),
-      ],
-      seed: 1,
+class _HomeFakeVideoPlayerPlatform extends VideoPlayerPlatform {
+  int _nextPlayerId = 0;
+  final Map<int, StreamController<VideoEvent>> _streams =
+      <int, StreamController<VideoEvent>>{};
+
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<int?> createWithOptions(VideoCreationOptions options) async {
+    final playerId = _nextPlayerId++;
+    final stream = StreamController<VideoEvent>();
+    _streams[playerId] = stream;
+    stream.add(
+      VideoEvent(
+        eventType: VideoEventType.initialized,
+        size: const Size(1920, 1080),
+        duration: const Duration(minutes: 2),
+      ),
     );
-    await tester.pumpWidget(
-      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    return playerId;
+  }
+
+  @override
+  Stream<VideoEvent> videoEventsFor(int playerId) => _streams[playerId]!.stream;
+
+  @override
+  Widget buildView(int playerId) {
+    return ColoredBox(
+      color: Colors.black,
+      child: Text('video-$playerId', textDirection: TextDirection.ltr),
     );
-    await tester.pumpAndSettle();
+  }
 
-    expect(find.byKey(const Key('location-filter-btn')), findsOneWidget);
+  @override
+  Future<void> dispose(int playerId) async {
+    await _streams.remove(playerId)?.close();
+  }
 
-    await tester.tap(find.byKey(const Key('location-filter-btn')));
-    await tester.pumpAndSettle();
-    expect(controller.filteredMediaIds.length, 1);
+  @override
+  Future<void> pause(int playerId) async {}
 
-    await tester.tap(find.byKey(const Key('location-filter-btn')));
-    await tester.pumpAndSettle();
-    expect(controller.filteredMediaIds.length, 2);
-  });
+  @override
+  Future<void> play(int playerId) async {}
+
+  @override
+  Future<Duration> getPosition(int playerId) async =>
+      const Duration(seconds: 20);
+
+  @override
+  Future<void> seekTo(int playerId, Duration position) async {}
+
+  @override
+  Future<void> setLooping(int playerId, bool looping) async {}
+
+  @override
+  Future<void> setVolume(int playerId, double volume) async {}
+
+  @override
+  Future<void> setPlaybackSpeed(int playerId, double speed) async {}
+
+  @override
+  Future<void> setMixWithOthers(bool mixWithOthers) async {}
 }

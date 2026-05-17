@@ -127,6 +127,39 @@ void main() {
     },
   );
 
+  testWidgets(
+    'photo thumbnails without preview bytes show a loading placeholder',
+    (tester) async {
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'photo-content',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 1),
+            pathOrUri: 'content://photo-content',
+          ),
+        ],
+        seed: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: MediaBrowserPage(controller: controller)),
+      );
+
+      final thumbnail = find.byKey(const Key('media-thumbnail-photo-content'));
+      expect(thumbnail, findsOneWidget);
+      expect(
+        find.descendant(
+          of: thumbnail,
+          matching: find.byKey(
+            const Key('media-thumbnail-loading-photo-content'),
+          ),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('thumbnail strip scrolls selected media into view', (
     tester,
   ) async {
@@ -176,6 +209,63 @@ void main() {
 
     expect(find.byKey(const Key('media-thumbnail-m29')), findsOneWidget);
   });
+
+  testWidgets(
+    'thumbnail strip preserves user scroll when item ids are unchanged',
+    (tester) async {
+      var items = List.generate(
+        30,
+        (index) => MediaItem(
+          id: 'm$index',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, index + 1),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              return Scaffold(
+                body: Column(
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => setState(() => items = List.of(items)),
+                      child: const Text('Rebuild'),
+                    ),
+                    MediaThumbnailStrip(
+                      items: items,
+                      currentMediaId: 'm0',
+                      onTap: (_) {},
+                      thumbnailBuilder: (_, __, ___) => const ColoredBox(
+                        color: Colors.black12,
+                        child: SizedBox.expand(),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('media-thumbnail-m0')), findsOneWidget);
+
+      await tester.drag(
+        find.byKey(const Key('media-thumbnail-strip')),
+        const Offset(-700, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('media-thumbnail-m0')), findsNothing);
+
+      await tester.tap(find.text('Rebuild'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('media-thumbnail-m0')), findsNothing);
+    },
+  );
 
   testWidgets(
     'thumbnail strip marks selected item with stable selected state',

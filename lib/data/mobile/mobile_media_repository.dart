@@ -43,6 +43,7 @@ class MethodChannelMobileMediaRepository implements MobileMediaRepository {
             locationKey: raw['locationKey']?.toString(),
             pathOrUri: raw['pathOrUri']?.toString(),
             sizeBytes: _sizeBytesFromRaw(raw),
+            livePhotoVideoUri: _livePhotoVideoUriFromRaw(raw),
           ),
         )
         .where((item) => item.id.isNotEmpty)
@@ -229,6 +230,12 @@ class MethodChannelMobileMediaRepository implements MobileMediaRepository {
     return _intFromRaw(raw['sizeBytes']) ?? _intFromRaw(raw['size']);
   }
 
+  String? _livePhotoVideoUriFromRaw(Map<dynamic, dynamic> raw) {
+    final value = raw['livePhotoVideoUri'] ?? raw['motionVideoUri'];
+    final text = value?.toString();
+    return text == null || text.isEmpty ? null : text;
+  }
+
   List<MediaItem> _mapMediaItems(List<dynamic>? result) {
     return (result ?? const <dynamic>[])
         .whereType<Map<dynamic, dynamic>>()
@@ -240,6 +247,7 @@ class MethodChannelMobileMediaRepository implements MobileMediaRepository {
             locationKey: raw['locationKey']?.toString(),
             pathOrUri: raw['pathOrUri']?.toString(),
             sizeBytes: _sizeBytesFromRaw(raw),
+            livePhotoVideoUri: _livePhotoVideoUriFromRaw(raw),
           ),
         )
         .where((item) => item.id.isNotEmpty)

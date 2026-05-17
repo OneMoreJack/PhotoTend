@@ -151,36 +151,7 @@ class _TrashPageState extends State<TrashPage> {
                                 child: Stack(
                                   fit: StackFit.expand,
                                   children: [
-                                    ColorFiltered(
-                                      colorFilter: selected
-                                          ? const ColorFilter.mode(
-                                              Colors.transparent,
-                                              BlendMode.dst,
-                                            )
-                                          : const ColorFilter.matrix(<double>[
-                                              0.2126,
-                                              0.7152,
-                                              0.0722,
-                                              0,
-                                              0,
-                                              0.2126,
-                                              0.7152,
-                                              0.0722,
-                                              0,
-                                              0,
-                                              0.2126,
-                                              0.7152,
-                                              0.0722,
-                                              0,
-                                              0,
-                                              0,
-                                              0,
-                                              0,
-                                              1,
-                                              0,
-                                            ]),
-                                      child: _buildGridPreview(id),
-                                    ),
+                                    _buildGridPreview(id),
                                     AnimatedOpacity(
                                       opacity: selected ? 1 : 0,
                                       duration: const Duration(
@@ -406,28 +377,24 @@ class _TrashPageState extends State<TrashPage> {
         backgroundColor: background,
         foregroundColor: foreground,
         disabledForegroundColor: const Color(0xFF9CA3AF),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         textStyle: const TextStyle(
-          fontSize: 16,
+          fontSize: 14,
           fontWeight: FontWeight.w800,
           letterSpacing: 0,
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 22),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 19),
+            const SizedBox(width: 5),
+            Text(label, maxLines: 1),
+          ],
+        ),
       ),
     );
   }

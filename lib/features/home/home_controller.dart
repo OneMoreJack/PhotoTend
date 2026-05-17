@@ -74,7 +74,7 @@ class HomeController extends ChangeNotifier {
   List<String> _filteredMediaIds = <String>[];
   String? currentMediaId;
   bool _videoOnlyEnabled = false;
-  BrowseMode _browseMode = BrowseMode.random;
+  BrowseMode _browseMode = BrowseMode.sequential;
   final Map<String, String?> _deviceModelCache = <String, String?>{};
   String? _activeDeviceFilter;
   String? _exactLocationKeyFilter;
@@ -99,18 +99,22 @@ class HomeController extends ChangeNotifier {
     final todayEnd = todayStart
         .add(const Duration(days: 1))
         .subtract(const Duration(milliseconds: 1));
+    final allItems = _summarySourceItems().toList(growable: false);
     return [
-      _buildSummaryEntry(
-        id: 'recent-3-days',
-        title: '近三天',
-        start: todayStart.subtract(const Duration(days: 2)),
-        end: todayEnd,
-      ),
       _buildSummaryEntry(
         id: 'recent-7-days',
         title: '近一周',
         start: todayStart.subtract(const Duration(days: 6)),
         end: todayEnd,
+      ),
+      _buildSummaryEntryFromItems(
+        id: 'all-media',
+        title: '所有照片',
+        items: allItems,
+        query: MediaCollectionQuery(
+          title: '所有照片',
+          mediaIds: allItems.map((item) => item.id).toSet(),
+        ),
       ),
     ];
   }
@@ -620,6 +624,20 @@ class HomeController extends ChangeNotifier {
         .map((id) => mediaById[id])
         .whereType<MediaItem>()
         .toList(growable: false);
+  }
+
+  MediaItem? preparePreviousMediaForPreload() {
+    final previousIndex = _findPreviousNavigableIndex();
+    if (previousIndex == null) {
+      return null;
+    }
+    final previousId = _shownHistory[previousIndex];
+    for (final item in _allMediaItems) {
+      if (item.id == previousId) {
+        return item;
+      }
+    }
+    return null;
   }
 
   DateTimeRangeValues _effectiveTimeRange() {

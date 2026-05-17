@@ -116,6 +116,7 @@ import UIKit
       let createdAtMillis = asset.creationDate.map { Int64($0.timeIntervalSince1970 * 1000.0) }
       let locationKey = self.buildLocationKey(asset: asset)
       let sizeBytes = self.fileSizeBytes(asset: asset)
+      let livePhotoVideoUri = self.livePhotoVideoUri(asset: asset)
       items.append(
         [
           "id": asset.localIdentifier,
@@ -125,6 +126,7 @@ import UIKit
           "pathOrUri": "phasset://\(asset.localIdentifier)",
           "sizeBytes": sizeBytes,
           "size": sizeBytes,
+          "livePhotoVideoUri": livePhotoVideoUri,
         ]
       )
     }
@@ -237,6 +239,15 @@ import UIKit
   }
 
   private func resolvePlayableMediaUri(pathOrUri: String, result: @escaping FlutterResult) {
+    if pathOrUri.hasPrefix("phlive://") {
+      guard let asset = assetForLivePhotoVideoUri(pathOrUri: pathOrUri) else {
+        result(nil)
+        return
+      }
+      exportLivePhotoPairedVideo(asset: asset, result: result)
+      return
+    }
+
     guard pathOrUri.hasPrefix("phasset://") else {
       result(pathOrUri)
       return
@@ -272,6 +283,49 @@ import UIKit
     let localId = String(pathOrUri.dropFirst("phasset://".count))
     let assets = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
     return assets.firstObject
+  }
+
+  private func assetForLivePhotoVideoUri(pathOrUri: String) -> PHAsset? {
+    guard pathOrUri.hasPrefix("phlive://") else {
+      return nil
+    }
+    let localId = String(pathOrUri.dropFirst("phlive://".count))
+    let assets = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
+    return assets.firstObject
+  }
+
+  private func livePhotoVideoUri(asset: PHAsset) -> String? {
+    guard asset.mediaType == .image,
+          asset.mediaSubtypes.contains(.photoLive) else {
+      return nil
+    }
+    let resources = PHAssetResource.assetResources(for: asset)
+    guard resources.contains(where: { $0.type == .pairedVideo }) else {
+      return nil
+    }
+    return "phlive://\(asset.localIdentifier)"
+  }
+
+  private func exportLivePhotoPairedVideo(asset: PHAsset, result: @escaping FlutterResult) {
+    let resources = PHAssetResource.assetResources(for: asset)
+    guard let pairedVideo = resources.first(where: { $0.type == .pairedVideo }) else {
+      result(nil)
+      return
+    }
+    let sanitizedId = asset.localIdentifier.replacingOccurrences(of: "/", with: "_")
+    let outputUrl = FileManager.default.temporaryDirectory
+      .appendingPathComponent("rephoto_live_\(sanitizedId)_\(UUID().uuidString).mov")
+    try? FileManager.default.removeItem(at: outputUrl)
+
+    let options = PHAssetResourceRequestOptions()
+    options.isNetworkAccessAllowed = true
+    PHAssetResourceManager.default().writeData(for: pairedVideo, toFile: outputUrl, options: options) { error in
+      if error != nil {
+        result(nil)
+      } else {
+        result(outputUrl.absoluteString)
+      }
+    }
   }
 
   private func fetchVideoPreviewImageData(asset: PHAsset, result: @escaping FlutterResult) {

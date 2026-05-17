@@ -4,7 +4,7 @@ import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/features/home/home_controller.dart';
 
 void main() {
-  test('album summaries exclude trashed media and include recent windows', () {
+  test('album summaries exclude trashed media and include top shortcuts', () {
     final now = DateTime(2026, 5, 14, 12);
     final controller = HomeController(
       initialMediaItems: [
@@ -33,10 +33,11 @@ void main() {
 
     controller.updateTrash({'a'});
 
-    final recent3 = controller.albumSummaryEntries.singleWhere(
-      (entry) => entry.id == 'recent-3-days',
+    final allMedia = controller.albumSummaryEntries.singleWhere(
+      (entry) => entry.id == 'all-media',
     );
-    expect(recent3.totalCount, 0);
+    expect(allMedia.photoCount, 1);
+    expect(allMedia.videoCount, 1);
 
     final recent7 = controller.albumSummaryEntries.singleWhere(
       (entry) => entry.id == 'recent-7-days',
@@ -75,12 +76,12 @@ void main() {
 
     controller.updateTrash({'trashed-cover'});
 
-    final recent3 = controller.recentAlbumSummaryEntries.singleWhere(
-      (entry) => entry.id == 'recent-3-days',
+    final allMedia = controller.recentAlbumSummaryEntries.singleWhere(
+      (entry) => entry.id == 'all-media',
     );
-    expect(recent3.coverMediaId, 'kept-photo');
-    expect(recent3.previewMediaIds, ['kept-photo', 'kept-video']);
-    expect(recent3.previewMediaIds, isNot(contains('trashed-cover')));
+    expect(allMedia.coverMediaId, 'kept-photo');
+    expect(allMedia.previewMediaIds, ['kept-photo', 'kept-video']);
+    expect(allMedia.previewMediaIds, isNot(contains('trashed-cover')));
   });
 
   test('album summary cover prefers photos with path before videos', () {
@@ -109,12 +110,12 @@ void main() {
       seed: 1,
     );
 
-    final recent3 = controller.recentAlbumSummaryEntries.singleWhere(
-      (entry) => entry.id == 'recent-3-days',
+    final allMedia = controller.recentAlbumSummaryEntries.singleWhere(
+      (entry) => entry.id == 'all-media',
     );
 
-    expect(recent3.coverMediaId, 'photo-with-path');
-    expect(recent3.previewMediaIds.take(3), [
+    expect(allMedia.coverMediaId, 'photo-with-path');
+    expect(allMedia.previewMediaIds.take(3), [
       'new-video',
       'photo-without-path',
       'photo-with-path',
@@ -454,7 +455,6 @@ void main() {
       seed: 1,
     );
 
-    controller.toggleBrowseMode();
     expect(controller.browseMode, BrowseMode.sequential);
     controller.currentMediaId = 'a';
 
@@ -475,6 +475,8 @@ void main() {
         initialMediaIds: const ['a', 'b'],
         seed: 0,
       );
+      controller.toggleBrowseMode();
+      expect(controller.browseMode, BrowseMode.random);
       final first = controller.currentMediaId!;
 
       controller.onSwipeLeftRandom();
@@ -558,7 +560,6 @@ void main() {
       expect(controller.currentMediaId, 'day-1');
       expect(controller.prepareUpcomingMediaForPreload()?.id, isNotNull);
 
-      controller.toggleBrowseMode();
       expect(controller.browseMode, BrowseMode.sequential);
 
       controller.onSwipeLeftRandom();

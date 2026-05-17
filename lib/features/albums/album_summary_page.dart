@@ -9,6 +9,7 @@ import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/domain/services/permanent_delete_service.dart';
 import 'package:rephoto/features/home/home_controller.dart';
 import 'package:rephoto/features/media/media_browser_page.dart';
+import 'package:rephoto/features/settings/settings_page.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
 
 class AlbumSummaryPage extends StatefulWidget {
@@ -68,9 +69,10 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(26, 24, 26, 28),
                     children: [
+                      _AlbumHomeHeader(onSettings: _openSettings),
                       if (widget.statusMessage != null)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.only(bottom: 12, top: 6),
                           child: Text(
                             widget.statusMessage!,
                             key: const Key('mobile-library-status'),
@@ -107,6 +109,8 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
                             mediaById: mediaById,
                             previewBytesById: _mobilePreviewBytes,
                             onNeedPreview: _ensureMobilePreviewBytes,
+                            isCompleted:
+                                widget.controller.isCollectionCompleted,
                             onOpenMonth: (entry) =>
                                 _openBrowser(context, entry),
                           ),
@@ -151,6 +155,21 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
     );
   }
 
+  Future<void> _openSettings() async {
+    final action = await Navigator.of(context).push<SettingsAction>(
+      MaterialPageRoute(
+        builder: (_) =>
+            SettingsPage(deletionStats: widget.controller.deletionStats),
+      ),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    if (action == SettingsAction.resetRandomPool) {
+      widget.controller.resetRandomPool();
+    }
+  }
+
   Map<String, MediaItem> _mediaByIdForEntries(List<AlbumSummaryEntry> entries) {
     final ids = <String>{
       for (final entry in entries) ...[
@@ -178,6 +197,9 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
     if (result == null) {
       return;
     }
+    widget.controller.recordPermanentDeletionStats(
+      result.permanentlyDeletedIds,
+    );
     widget.controller.updateTrash(result.trashIds);
     widget.controller.removeMediaItems(result.permanentlyDeletedIds);
   }
@@ -209,6 +231,45 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
     } finally {
       _mobilePreviewLoadingIds.remove(media.id);
     }
+  }
+}
+
+class _AlbumHomeHeader extends StatelessWidget {
+  const _AlbumHomeHeader({required this.onSettings});
+
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const Key('album-home-header'),
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'RePhoto',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Color(0xFF1D1D21),
+                fontSize: 32,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          IconButton(
+            key: const Key('album-settings-btn'),
+            tooltip: 'Settings',
+            onPressed: onSettings,
+            icon: const Icon(Icons.settings_outlined),
+            color: const Color(0xFF4E5360),
+            iconSize: 28,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -690,6 +751,7 @@ class _MonthSummaryCard extends StatelessWidget {
     required this.mediaById,
     required this.previewBytesById,
     required this.onNeedPreview,
+    required this.completed,
     required this.onTap,
   });
 
@@ -697,6 +759,7 @@ class _MonthSummaryCard extends StatelessWidget {
   final Map<String, MediaItem> mediaById;
   final Map<String, Uint8List> previewBytesById;
   final ValueChanged<MediaItem> onNeedPreview;
+  final bool completed;
   final VoidCallback onTap;
 
   @override
@@ -741,6 +804,49 @@ class _MonthSummaryCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (completed)
+                  Positioned(
+                    key: Key('album-month-completed-${entry.id}'),
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E),
+                        borderRadius: BorderRadius.circular(999),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.18),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.done_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            'Done',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 Positioned(
                   left: 12,
                   right: 12,
@@ -780,21 +886,20 @@ class _AlbumSummaryStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
+    final items = <Widget>[
+      if (entry.photoCount > 0)
         _AlbumStatItem(
           key: Key('album-stat-photos-${entry.id}'),
           icon: Icons.photo_outlined,
           label: '${entry.photoCount}',
         ),
-        const SizedBox(width: 10),
+      if (entry.videoCount > 0)
         _AlbumStatItem(
           key: Key('album-stat-videos-${entry.id}'),
           icon: Icons.movie_creation_outlined,
           label: '${entry.videoCount}',
         ),
-        const SizedBox(width: 10),
+      if (entry.knownSizeBytes > 0)
         Flexible(
           child: _AlbumStatItem(
             key: Key('album-stat-size-${entry.id}'),
@@ -802,6 +907,17 @@ class _AlbumSummaryStats extends StatelessWidget {
             label: _AlbumSummaryFormatter.sizeText(entry),
           ),
         ),
+    ];
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var index = 0; index < items.length; index++) ...[
+          if (index > 0) const SizedBox(width: 10),
+          items[index],
+        ],
       ],
     );
   }
@@ -958,6 +1074,7 @@ class _YearSummarySection extends StatelessWidget {
     required this.mediaById,
     required this.previewBytesById,
     required this.onNeedPreview,
+    required this.isCompleted,
     required this.onOpenMonth,
   });
 
@@ -965,6 +1082,7 @@ class _YearSummarySection extends StatelessWidget {
   final Map<String, MediaItem> mediaById;
   final Map<String, Uint8List> previewBytesById;
   final ValueChanged<MediaItem> onNeedPreview;
+  final bool Function(String id) isCompleted;
   final ValueChanged<AlbumSummaryEntry> onOpenMonth;
 
   @override
@@ -1003,6 +1121,7 @@ class _YearSummarySection extends StatelessWidget {
                     mediaById: mediaById,
                     previewBytesById: previewBytesById,
                     onNeedPreview: onNeedPreview,
+                    completed: isCompleted(entry.id),
                     onTap: () => onOpenMonth(entry),
                   ),
               ],

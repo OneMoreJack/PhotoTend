@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:rephoto/domain/models/album_summary_entry.dart';
+import 'package:rephoto/domain/models/deletion_stats.dart';
 import 'package:rephoto/domain/models/media_collection_query.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/domain/services/filter_service.dart';
@@ -79,6 +80,8 @@ class HomeController extends ChangeNotifier {
   String? _activeDeviceFilter;
   String? _exactLocationKeyFilter;
   MediaCollectionQuery? _activeCollectionQuery;
+  final Set<String> _completedCollectionIds = <String>{};
+  DeletionStats _deletionStats = DeletionStats.empty;
 
   Set<String> get trashIds => _gestureSessionService.trashIds;
   int get trashCount => _gestureSessionService.trashIds.length;
@@ -112,6 +115,7 @@ class HomeController extends ChangeNotifier {
         title: '所有照片',
         items: allItems,
         query: MediaCollectionQuery(
+          collectionId: 'all-media',
           title: '所有照片',
           mediaIds: allItems.map((item) => item.id).toSet(),
         ),
@@ -138,6 +142,7 @@ class HomeController extends ChangeNotifier {
       items: items,
       previewLimit: null,
       query: MediaCollectionQuery(
+        collectionId: 'on-this-day',
         title: '那年今日',
         mediaIds: items.map((item) => item.id).toSet(),
       ),
@@ -218,8 +223,11 @@ class HomeController extends ChangeNotifier {
   bool get hasDeviceFilter => _activeDeviceFilter != null;
   String? get activeDeviceFilter => _activeDeviceFilter;
   MediaCollectionQuery? get activeCollectionQuery => _activeCollectionQuery;
+  DeletionStats get deletionStats => _deletionStats;
 
   bool get hasOverlayDayFilter => _overlayDayStart != null;
+
+  bool isCollectionCompleted(String id) => _completedCollectionIds.contains(id);
 
   MediaItem? get currentMedia {
     final currentId = currentMediaId;
@@ -446,6 +454,18 @@ class HomeController extends ChangeNotifier {
   void clearCollectionQuery() {
     _activeCollectionQuery = null;
     _applyFilters();
+  }
+
+  void recordPermanentDeletionStats(Set<String> ids) {
+    if (ids.isEmpty) {
+      return;
+    }
+    final items = mediaItemsByIds(ids);
+    if (items.isEmpty) {
+      return;
+    }
+    _deletionStats = _deletionStats.add(DeletionStats.fromItems(items));
+    notifyListeners();
   }
 
   void jumpToMedia(String id) {
@@ -991,6 +1011,11 @@ class HomeController extends ChangeNotifier {
 
     final next = _consumeQueuedOrPickNextId();
     if (next == null) {
+      if (_shouldCompleteActiveCollection()) {
+        currentMediaId = null;
+        _markActiveCollectionCompleted();
+        return;
+      }
       if (currentMediaId != null && _isNavigableId(currentMediaId!)) {
         return;
       }
@@ -1108,9 +1133,15 @@ class HomeController extends ChangeNotifier {
         ? _filteredMediaIds.indexOf(targetId)
         : -1;
 
-    // Scan forward with wrap-around to find the next valid sequential item.
-    for (var i = 1; i <= _filteredMediaIds.length; i++) {
-      final nextIndex = (currentIndex + i) % _filteredMediaIds.length;
+    final shouldWrap = _activeCollectionQuery?.collectionId == null;
+    final maxSteps = shouldWrap
+        ? _filteredMediaIds.length
+        : _filteredMediaIds.length - currentIndex - 1;
+
+    for (var i = 1; i <= maxSteps; i++) {
+      final nextIndex = shouldWrap
+          ? (currentIndex + i) % _filteredMediaIds.length
+          : currentIndex + i;
       final candidate = _filteredMediaIds[nextIndex];
       if (_isNavigableId(candidate)) {
         _randomPoolService.markConsumed(candidate);
@@ -1119,6 +1150,21 @@ class HomeController extends ChangeNotifier {
     }
 
     return null;
+  }
+
+  bool _shouldCompleteActiveCollection() {
+    final collectionId = _activeCollectionQuery?.collectionId;
+    return collectionId != null &&
+        collectionId.startsWith('month-') &&
+        currentMediaId != null;
+  }
+
+  void _markActiveCollectionCompleted() {
+    final collectionId = _activeCollectionQuery?.collectionId;
+    if (collectionId == null || !collectionId.startsWith('month-')) {
+      return;
+    }
+    _completedCollectionIds.add(collectionId);
   }
 
   bool _isNavigableId(String id) {
@@ -1191,7 +1237,12 @@ class HomeController extends ChangeNotifier {
       id: id,
       title: title,
       items: items,
-      query: MediaCollectionQuery(title: title, timeStart: start, timeEnd: end),
+      query: MediaCollectionQuery(
+        collectionId: id,
+        title: title,
+        timeStart: start,
+        timeEnd: end,
+      ),
     );
   }
 

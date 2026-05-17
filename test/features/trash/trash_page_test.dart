@@ -5,6 +5,70 @@ import 'package:rephoto/domain/services/permanent_delete_service.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
 
 void main() {
+  testWidgets('restore and delete buttons use active styling when selected', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: TrashPage(initialIds: ['1'])),
+    );
+
+    Color buttonBackground(Finder finder) {
+      final button = tester.widget<TextButton>(finder);
+      return button.style!.backgroundColor!.resolve(<WidgetState>{})!;
+    }
+
+    expect(
+      buttonBackground(find.byKey(const Key('trash-bottom-restore-btn'))),
+      const Color(0xFFF4F5F8),
+    );
+    expect(
+      buttonBackground(find.byKey(const Key('trash-bottom-delete-btn'))),
+      const Color(0xFFF4F5F8),
+    );
+
+    await tester.tap(find.byKey(const Key('trash-grid-item-1')));
+    await tester.pumpAndSettle();
+
+    expect(
+      buttonBackground(find.byKey(const Key('trash-bottom-restore-btn'))),
+      const Color(0xFFE7F0FF),
+    );
+    expect(
+      buttonBackground(find.byKey(const Key('trash-bottom-delete-btn'))),
+      const Color(0xFFFFE3E2),
+    );
+  });
+
+  testWidgets('bottom bar summarizes trash photo video counts and size', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrashPage(
+          initialIds: const ['p1', 'v1', 'p2'],
+          initialMediaItems: const [
+            MediaItem(id: 'p1', type: MediaType.photo, sizeBytes: 1024),
+            MediaItem(id: 'v1', type: MediaType.video, sizeBytes: 2048),
+            MediaItem(id: 'p2', type: MediaType.photo),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('2 photos'), findsOneWidget);
+    expect(find.text('1 video'), findsOneWidget);
+    expect(find.text('3.0 KB+'), findsOneWidget);
+  });
+
+  testWidgets('empty trash hides photo video and size stats', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: TrashPage(initialIds: [])));
+
+    expect(find.text('0 photos'), findsNothing);
+    expect(find.text('0 videos'), findsNothing);
+    expect(find.text('0 B'), findsNothing);
+    expect(find.byKey(const Key('trash-bottom-stats')), findsNothing);
+  });
+
   testWidgets('restore selected removes item from trash list', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: TrashPage(initialIds: ['1', '2'])),

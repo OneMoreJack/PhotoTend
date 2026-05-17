@@ -278,6 +278,28 @@ class _TrashPageState extends State<TrashPage> {
 
   Widget _buildBottomBar() {
     final selectedCount = _controller.selected.length;
+    final stats = _trashStats();
+    final statItems = <Widget>[
+      if (stats.photoCount > 0)
+        _buildTrashStat(
+          icon: Icons.photo_outlined,
+          label: _countText(stats.photoCount, 'photo'),
+        ),
+      if (stats.videoCount > 0)
+        _buildTrashStat(
+          icon: Icons.movie_creation_outlined,
+          label: _countText(stats.videoCount, 'video'),
+        ),
+      if (stats.knownSizeBytes > 0 || stats.hasUnknownSize)
+        Flexible(
+          child: _buildTrashStat(
+            icon: Icons.sd_storage_outlined,
+            label:
+                '${_formatBytes(stats.knownSizeBytes)}'
+                '${stats.hasUnknownSize ? '+' : ''}',
+          ),
+        ),
+    ];
     return SafeArea(
       top: false,
       child: Container(
@@ -311,6 +333,18 @@ class _TrashPageState extends State<TrashPage> {
                 ),
               ),
             ),
+            if (statItems.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(
+                key: const Key('trash-bottom-stats'),
+                children: [
+                  for (var index = 0; index < statItems.length; index++) ...[
+                    if (index > 0) const SizedBox(width: 12),
+                    statItems[index],
+                  ],
+                ],
+              ),
+            ],
             const SizedBox(height: 18),
             Row(
               children: [
@@ -319,6 +353,7 @@ class _TrashPageState extends State<TrashPage> {
                     key: const Key('trash-bottom-restore-btn'),
                     icon: Icons.restore_from_trash_outlined,
                     label: 'Restore',
+                    active: selectedCount > 0,
                     onPressed: _isDeleting || selectedCount == 0
                         ? null
                         : _controller.restoreSelected,
@@ -330,6 +365,8 @@ class _TrashPageState extends State<TrashPage> {
                     key: const Key('trash-bottom-delete-btn'),
                     icon: Icons.delete_forever_outlined,
                     label: 'Delete',
+                    danger: true,
+                    active: selectedCount > 0,
                     onPressed: _isDeleting || selectedCount == 0
                         ? null
                         : _deleteSelectedPermanently,
@@ -363,11 +400,16 @@ class _TrashPageState extends State<TrashPage> {
     required VoidCallback? onPressed,
     bool danger = false,
     bool filledDanger = false,
+    bool active = false,
   }) {
-    final foreground = danger
+    final foreground = active
+        ? (danger ? const Color(0xFFD92D20) : const Color(0xFF0066D6))
+        : danger
         ? const Color(0xFFD92D20)
         : const Color(0xFF89909B);
-    final background = filledDanger
+    final background = active
+        ? (danger ? const Color(0xFFFFE3E2) : const Color(0xFFE7F0FF))
+        : filledDanger
         ? const Color(0xFFFFE3E2)
         : const Color(0xFFF4F5F8);
     return TextButton(
@@ -397,6 +439,81 @@ class _TrashPageState extends State<TrashPage> {
         ),
       ),
     );
+  }
+
+  _TrashStats _trashStats() {
+    var photos = 0;
+    var videos = 0;
+    var size = 0;
+    var unknown = false;
+    for (final id in _controller.ids) {
+      final media = _mediaById[id];
+      if (media == null) {
+        unknown = true;
+        continue;
+      }
+      switch (media.type) {
+        case MediaType.photo:
+          photos += 1;
+        case MediaType.video:
+          videos += 1;
+      }
+      final bytes = media.sizeBytes;
+      if (bytes == null) {
+        unknown = true;
+      } else {
+        size += bytes;
+      }
+    }
+    return _TrashStats(
+      photoCount: photos,
+      videoCount: videos,
+      knownSizeBytes: size,
+      hasUnknownSize: unknown,
+    );
+  }
+
+  Widget _buildTrashStat({required IconData icon, required String label}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: const Color(0xFF6B7280)),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF555B66),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _countText(int count, String singular) {
+    return '$count $singular${count == 1 ? '' : 's'}';
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    final kb = bytes / 1024;
+    if (kb < 1024) {
+      return '${kb.toStringAsFixed(kb >= 10 ? 0 : 1)} KB';
+    }
+    final mb = kb / 1024;
+    if (mb < 1024) {
+      return '${mb.toStringAsFixed(mb >= 10 ? 0 : 1)} MB';
+    }
+    final gb = mb / 1024;
+    return '${gb.toStringAsFixed(gb >= 10 ? 1 : 2)} GB';
   }
 
   Widget _buildGridPreview(String id) {
@@ -517,4 +634,18 @@ class _TrashPageState extends State<TrashPage> {
       ),
     );
   }
+}
+
+class _TrashStats {
+  const _TrashStats({
+    required this.photoCount,
+    required this.videoCount,
+    required this.knownSizeBytes,
+    required this.hasUnknownSize,
+  });
+
+  final int photoCount;
+  final int videoCount;
+  final int knownSizeBytes;
+  final bool hasUnknownSize;
 }

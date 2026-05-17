@@ -120,6 +120,69 @@ void main() {
     expect(find.byKey(const Key('current-media-preview')), findsNothing);
   });
 
+  testWidgets('home header exposes settings entry', (tester) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'recent',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13),
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14),
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+
+    expect(find.text('RePhoto'), findsOneWidget);
+    expect(find.byTooltip('Settings'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reset Random Pool'), findsOneWidget);
+  });
+
+  testWidgets('monthly completion keeps month title and only replay action', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'early',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 1),
+        ),
+      ],
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+    controller.applyCollectionQuery(month.query);
+    controller.onSwipeLeftRandom();
+    controller.onSwipeLeftRandom();
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+
+    expect(find.text('April 2026'), findsOneWidget);
+    expect(find.text('当前月份已经浏览完毕'), findsOneWidget);
+    expect(find.text('再看一遍'), findsOneWidget);
+    expect(
+      find.byKey(const Key('reset-filters-and-restart-button')),
+      findsNothing,
+    );
+  });
+
   testWidgets('tapping recent shortcut opens the matching browser collection', (
     tester,
   ) async {
@@ -223,6 +286,42 @@ void main() {
 
     expect(find.byKey(const Key('media-browser-page')), findsOneWidget);
     expect(controller.currentMediaId, 'late');
+  });
+
+  testWidgets('completed month shows a done marker on album summary', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'early',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 1),
+        ),
+      ],
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+    controller.applyCollectionQuery(month.query);
+    controller.onSwipeLeftRandom();
+    controller.onSwipeLeftRandom();
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('album-month-card-month-2026-04')),
+        matching: find.byKey(const Key('album-month-completed-month-2026-04')),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('album summary groups months by year without collapsing years', (
@@ -373,6 +472,50 @@ void main() {
         matching: find.byIcon(Icons.sd_storage_outlined),
       ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('month stats hide zero-value video and storage items', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'photo',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 1),
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14),
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+
+    final monthCard = find.byKey(const Key('album-month-card-month-2026-05'));
+    expect(monthCard, findsOneWidget);
+    expect(
+      find.descendant(
+        of: monthCard,
+        matching: find.byKey(const Key('album-stat-photos-month-2026-05')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: monthCard,
+        matching: find.byKey(const Key('album-stat-videos-month-2026-05')),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: monthCard,
+        matching: find.byKey(const Key('album-stat-size-month-2026-05')),
+      ),
+      findsNothing,
     );
   });
 
@@ -976,6 +1119,33 @@ void main() {
     expect(find.text('Reset Random Pool'), findsOneWidget);
   });
 
+  testWidgets('settings shows cumulative permanent deletion stats', (
+    tester,
+  ) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(id: 'p1', type: MediaType.photo, sizeBytes: 1024),
+        MediaItem(id: 'v1', type: MediaType.video, sizeBytes: 2048),
+      ],
+      seed: 1,
+    );
+    controller.recordPermanentDeletionStats({'p1', 'v1'});
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+
+    await tester.tap(find.byTooltip('Menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cumulative deleted'), findsOneWidget);
+    expect(find.text('1 photo'), findsOneWidget);
+    expect(find.text('1 video'), findsOneWidget);
+    expect(find.text('3.0 KB saved'), findsOneWidget);
+  });
+
   testWidgets('video only toggle switches controller mode', (tester) async {
     final controller = HomeController(
       initialMediaItems: [
@@ -1082,7 +1252,7 @@ void main() {
   });
 
   testWidgets(
-    'end status reset-filters button restores defaults and restarts',
+    'end status replay button restarts without reset-filters action',
     (tester) async {
       final now = DateTime.now();
       final controller = HomeController(
@@ -1099,18 +1269,18 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('已浏览完当前条件下的所有照片'), findsOneWidget);
+      expect(find.text('当前月份已经浏览完毕'), findsOneWidget);
       expect(find.text('再看一遍'), findsOneWidget);
-      expect(find.text('重新开始'), findsNothing);
-      await tester.ensureVisible(
+      expect(
         find.byKey(const Key('reset-filters-and-restart-button')),
+        findsNothing,
       );
-      await tester.tap(
-        find.byKey(const Key('reset-filters-and-restart-button')),
+      final replayButton = tester.widget<ElevatedButton>(
+        find.byKey(const Key('end-replay-button')),
       );
+      replayButton.onPressed?.call();
       await tester.pumpAndSettle();
 
-      expect(controller.selectedTimeFilter, TimeFilterPreset.all);
       expect(controller.currentMediaId, isNotNull);
     },
   );
@@ -1122,7 +1292,7 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('mobile-library-status')), findsOneWidget);
-    expect(find.text('已浏览完当前条件下的所有照片'), findsNothing);
+    expect(find.text('当前月份已经浏览完毕'), findsNothing);
   });
 
   testWidgets(

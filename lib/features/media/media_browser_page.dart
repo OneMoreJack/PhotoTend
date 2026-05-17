@@ -353,9 +353,19 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   String _browserTitle() {
     final current = _controller.currentMedia;
     final createdAt = current?.createdAt;
+    final activeQuery = _controller.activeCollectionQuery;
+    final queryStart = activeQuery?.timeStart;
     if (createdAt == null) {
+      if (activeQuery?.collectionId?.startsWith('month-') == true &&
+          queryStart != null) {
+        return _formatMonthTitle(queryStart);
+      }
       return 'RePhoto';
     }
+    return _formatMonthTitle(createdAt);
+  }
+
+  String _formatMonthTitle(DateTime value) {
     const months = [
       'January',
       'February',
@@ -370,7 +380,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       'November',
       'December',
     ];
-    return '${months[createdAt.month - 1]} ${createdAt.year}';
+    return '${months[value.month - 1]} ${value.year}';
   }
 
   Widget _buildMediaAreaWithGestures() {
@@ -1132,7 +1142,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 ),
                 const SizedBox(height: 32),
                 const Text(
-                  '已浏览完当前条件下的所有照片',
+                  '当前月份已经浏览完毕',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
@@ -1143,7 +1153,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  '你可以切换时间或地点条件\n或者点击下方按钮重新开始',
+                  '这个月的照片和视频都看完了',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -1153,6 +1163,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 ),
                 const SizedBox(height: 48),
                 ElevatedButton.icon(
+                  key: const Key('end-replay-button'),
                   onPressed: () => _controller.resetRandomPool(),
                   icon: const Icon(Icons.refresh_rounded, size: 20),
                   label: const Text(
@@ -1171,15 +1182,6 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  key: const Key('reset-filters-and-restart-button'),
-                  onPressed: _resetFiltersAndRestart,
-                  child: const Text(
-                    '重置条件并重新开始',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
@@ -1252,7 +1254,9 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
 
   Future<void> _openSettings() async {
     final action = await Navigator.of(context).push<SettingsAction>(
-      MaterialPageRoute(builder: (_) => const SettingsPage()),
+      MaterialPageRoute(
+        builder: (_) => SettingsPage(deletionStats: _controller.deletionStats),
+      ),
     );
     if (!mounted || action == null) {
       return;
@@ -1273,6 +1277,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       ),
     );
     if (result != null) {
+      _controller.recordPermanentDeletionStats(result.permanentlyDeletedIds);
       _controller.updateTrash(result.trashIds);
       _controller.removeMediaItems(result.permanentlyDeletedIds);
     }
@@ -1424,10 +1429,6 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
 
   void _toggleVideoOnlyMode() {
     _controller.toggleVideoOnlyMode();
-  }
-
-  void _resetFiltersAndRestart() {
-    _controller.resetAllFiltersAndRestart();
   }
 
   void _toggleBrowseMode() {

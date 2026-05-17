@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rephoto/features/media/widgets/video_tile.dart';
+import 'package:video_player/video_player.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 void main() {
@@ -29,7 +30,9 @@ void main() {
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
   });
 
-  testWidgets('video time label is shown at top center', (tester) async {
+  testWidgets('video time label is hidden until progress is dragged', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(body: VideoTile(uri: 'file:///tmp/a.mp4')),
@@ -38,15 +41,106 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    expect(find.byKey(const Key('video-time-label')), findsNothing);
+  });
+
+  testWidgets('video scrub shows time bubble and preview above thumb', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: VideoTile(uri: 'file:///tmp/a.mp4')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final progressBar = find.byKey(const Key('video-progress-bar'));
+    final center = tester.getCenter(progressBar);
+    final gesture = await tester.startGesture(center);
+    await tester.pump();
+    await gesture.moveBy(const Offset(80, 0));
+    await tester.pump();
+
     final badge = find.byKey(const Key('video-time-label'));
     expect(badge, findsOneWidget);
+    expect(find.byKey(const Key('video-scrub-preview')), findsOneWidget);
 
     final badgeCenter = tester.getCenter(badge);
-    final rootCenter = tester.getCenter(find.byType(Scaffold));
+    final previewCenter = tester.getCenter(
+      find.byKey(const Key('video-scrub-preview')),
+    );
+    final trackCenter = tester.getCenter(
+      find.byKey(const Key('video-progress-track')),
+    );
 
-    expect((badgeCenter.dx - rootCenter.dx).abs(), lessThanOrEqualTo(4));
-    expect(badgeCenter.dy, lessThan(80));
+    expect(badgeCenter.dy, lessThan(trackCenter.dy - 48));
+    expect(previewCenter.dy, lessThan(trackCenter.dy - 48));
+
+    final text = tester.widget<Text>(
+      find.descendant(of: badge, matching: find.byType(Text)),
+    );
+    expect(text.style?.fontSize, 16);
+
+    await gesture.up();
+    await tester.pump();
+    expect(find.byKey(const Key('video-time-label')), findsNothing);
   });
+
+  testWidgets('video scrub thumb stays white while dragging', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: VideoTile(uri: 'file:///tmp/a.mp4')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final progressBar = find.byKey(const Key('video-progress-bar'));
+    final gesture = await tester.startGesture(tester.getCenter(progressBar));
+    await tester.pump();
+    await gesture.moveBy(const Offset(80, 0));
+    await tester.pump();
+
+    final thumb = tester.widget<Container>(
+      find.byKey(const Key('video-progress-thumb')),
+    );
+    final decoration = thumb.decoration! as BoxDecoration;
+    expect(decoration.color, Colors.white);
+
+    await gesture.up();
+  });
+
+  testWidgets(
+    'video scrub preview renders current video frame instead of cover',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: VideoTile(uri: 'file:///tmp/a.mp4')),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final progressBar = find.byKey(const Key('video-progress-bar'));
+      final gesture = await tester.startGesture(tester.getCenter(progressBar));
+      await tester.pump();
+      await gesture.moveBy(const Offset(80, 0));
+      await tester.pump();
+
+      final preview = find.byKey(const Key('video-scrub-preview'));
+      expect(
+        find.descendant(of: preview, matching: find.byType(VideoPlayer)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: preview, matching: find.byType(Image)),
+        findsNothing,
+      );
+
+      await gesture.up();
+    },
+  );
 
   testWidgets('tap video surface toggles play and pause', (tester) async {
     await tester.pumpWidget(
@@ -68,6 +162,67 @@ void main() {
     expect(fakePlatform.pauseCalls, greaterThanOrEqualTo(2));
   });
 
+  testWidgets('scrubbing leaves main video playing and commits on release', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: VideoTile(uri: 'file:///tmp/a.mp4')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byType(VideoTile));
+    await tester.pump();
+    expect(fakePlatform.playCalls, 1);
+    final mainPlayerId = fakePlatform.mainPlayerId;
+    final initialMainPauseCalls = fakePlatform.pauseCallsFor(mainPlayerId);
+
+    final progressBar = find.byKey(const Key('video-progress-bar'));
+    final gesture = await tester.startGesture(tester.getCenter(progressBar));
+    await tester.pump();
+    await gesture.moveBy(const Offset(80, 0));
+    await tester.pump();
+
+    expect(fakePlatform.pauseCallsFor(mainPlayerId), initialMainPauseCalls);
+    expect(fakePlatform.playCalls, 1);
+    expect(fakePlatform.seekCallsFor(mainPlayerId), 0);
+    expect(find.byKey(const Key('video-scrub-preview')), findsOneWidget);
+
+    await gesture.up();
+    await tester.pump();
+
+    expect(find.byKey(const Key('video-scrub-preview')), findsNothing);
+    expect(fakePlatform.playCalls, 1);
+    expect(fakePlatform.seekCallsFor(mainPlayerId), 1);
+  });
+
+  testWidgets('tapping above progress track toggles playback without seeking', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            height: 620,
+            child: VideoTile(uri: 'file:///tmp/a.mp4'),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final tileBottom = tester.getBottomLeft(find.byType(VideoTile)).dy;
+    await tester.tapAt(Offset(180, tileBottom - 140));
+    await tester.pump();
+
+    expect(fakePlatform.playCalls, 1);
+    expect(fakePlatform.seekCallsFor(fakePlatform.mainPlayerId), 0);
+  });
+
   testWidgets('playing video does not show centered pause button', (
     tester,
   ) async {
@@ -85,7 +240,7 @@ void main() {
     expect(find.byIcon(Icons.pause_rounded), findsNothing);
   });
 
-  testWidgets('boost badge appears after time label in same top row', (
+  testWidgets('boost badge appears while long pressing playing video', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -109,14 +264,7 @@ void main() {
     final speedBadge = find.byKey(const Key('video-speed-label'));
 
     expect(speedBadge, findsOneWidget);
-    expect(
-      tester.getCenter(speedBadge).dy,
-      closeTo(tester.getCenter(timeBadge).dy, 2),
-    );
-    expect(
-      tester.getCenter(speedBadge).dx,
-      greaterThan(tester.getCenter(timeBadge).dx),
-    );
+    expect(timeBadge, findsNothing);
 
     await gesture.up();
     await tester.pump();
@@ -234,6 +382,9 @@ class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
   int pauseCalls = 0;
   int seekCalls = 0;
   Duration? lastSeek;
+  int get mainPlayerId => 0;
+  final Map<int, int> _pauseCallsByPlayer = <int, int>{};
+  final Map<int, int> _seekCallsByPlayer = <int, int>{};
   final Map<int, StreamController<VideoEvent>> _streams =
       <int, StreamController<VideoEvent>>{};
 
@@ -276,6 +427,7 @@ class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
   @override
   Future<void> pause(int playerId) async {
     pauseCalls += 1;
+    _pauseCallsByPlayer[playerId] = pauseCallsFor(playerId) + 1;
     _streams[playerId]?.add(
       VideoEvent(
         eventType: VideoEventType.isPlayingStateUpdate,
@@ -302,8 +454,13 @@ class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
   @override
   Future<void> seekTo(int playerId, Duration position) async {
     seekCalls += 1;
+    _seekCallsByPlayer[playerId] = seekCallsFor(playerId) + 1;
     lastSeek = position;
   }
+
+  int pauseCallsFor(int playerId) => _pauseCallsByPlayer[playerId] ?? 0;
+
+  int seekCallsFor(int playerId) => _seekCallsByPlayer[playerId] ?? 0;
 
   @override
   Future<void> setLooping(int playerId, bool looping) async {}

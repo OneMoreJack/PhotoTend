@@ -468,6 +468,35 @@ void main() {
     expect(controller.currentMediaId, 'a');
   });
 
+  test('monthly collection is marked completed after browsing last item', () {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'early',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 1),
+        ),
+      ],
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+
+    controller.applyCollectionQuery(month.query);
+    expect(controller.currentMediaId, 'late');
+
+    controller.onSwipeLeftRandom();
+    expect(controller.currentMediaId, 'early');
+
+    controller.onSwipeLeftRandom();
+    expect(controller.currentMediaId, isNull);
+    expect(controller.isCollectionCompleted(month.id), isTrue);
+  });
+
   test(
     'random pool returns null after exhaustion and reset makes items available again',
     () {

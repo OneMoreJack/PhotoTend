@@ -15,6 +15,7 @@ import 'package:rephoto/features/media/widgets/media_thumbnail_strip.dart';
 import 'package:rephoto/features/media/widgets/video_tile.dart';
 import 'package:rephoto/features/settings/settings_page.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
+import 'package:rephoto/theme/huashu_theme.dart';
 import 'package:video_player/video_player.dart';
 
 class MediaBrowserPage extends StatefulWidget {
@@ -42,7 +43,7 @@ class _ActionDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 34, color: const Color(0xFFEDEAF0));
+    return Container(width: 1, height: 34, color: HuashuColors.line);
   }
 }
 
@@ -64,14 +65,14 @@ class _MediaInfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: const Color(0xFF6B7280)),
+          Icon(icon, size: 20, color: HuashuColors.muted),
           const SizedBox(width: 12),
           SizedBox(
             width: 52,
             child: Text(
               label,
               style: const TextStyle(
-                color: Color(0xFF6B7280),
+                color: HuashuColors.muted,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -82,7 +83,7 @@ class _MediaInfoRow extends StatelessWidget {
             child: Text(
               value,
               style: const TextStyle(
-                color: Color(0xFF1D1D21),
+                color: HuashuColors.ink,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0,
@@ -207,11 +208,11 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           children: [
             Scaffold(
               key: _scaffoldKey,
-              backgroundColor: const Color(0xFFFFFAFD),
+              backgroundColor: HuashuColors.paper,
               drawer: _buildSideMenu(),
               appBar: AppBar(
-                backgroundColor: const Color(0xFFFFFAFD),
-                foregroundColor: Colors.black87,
+                backgroundColor: HuashuColors.paper,
+                foregroundColor: HuashuColors.ink,
                 elevation: 0,
                 titleSpacing: 0,
                 leading: IconButton(
@@ -239,7 +240,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                                 vertical: 1,
                               ),
                               decoration: const BoxDecoration(
-                                color: Colors.red,
+                                color: HuashuColors.danger,
                                 borderRadius: BorderRadius.all(
                                   Radius.circular(10),
                                 ),
@@ -253,7 +254,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                                 key: const Key('trash-badge-text'),
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: HuashuColors.surface,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -281,7 +282,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                       child: BackdropFilter(
                         filter: ui.ImageFilter.blur(sigmaX: 50, sigmaY: 50),
                         child: Container(
-                          color: Colors.white.withValues(alpha: 0.55),
+                          color: HuashuColors.surface.withValues(alpha: 0.55),
                         ),
                       ),
                     ),
@@ -302,7 +303,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   fontSize: 12,
-                                  color: Colors.black54,
+                                  color: HuashuColors.muted,
                                 ),
                               ),
                             ),
@@ -340,7 +341,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            color: Color(0xFF1D1D21),
+            color: HuashuColors.ink,
             fontSize: 25,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
@@ -422,7 +423,9 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                         horizontal: 48,
                         vertical: 80,
                       ),
-                      child: CircularProgressIndicator(color: Colors.black26),
+                      child: CircularProgressIndicator(
+                        color: HuashuColors.faint,
+                      ),
                     )
                   : _buildMediaPreviewFor(media),
             )
@@ -466,7 +469,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                                         vertical: 80,
                                       ),
                                       child: CircularProgressIndicator(
-                                        color: Colors.black26,
+                                        color: HuashuColors.faint,
                                       ),
                                     )
                                   : _buildMediaPreviewFor(media),
@@ -501,13 +504,13 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         ),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: HuashuColors.surface,
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
               color: deleteProgress > 0
-                  ? Colors.red.withValues(alpha: 0.15 * deleteProgress)
-                  : Colors.black12,
+                  ? HuashuColors.danger.withValues(alpha: 0.15 * deleteProgress)
+                  : HuashuColors.ink.withValues(alpha: 0.10),
               blurRadius: 24 + 12 * deleteProgress,
               offset: const Offset(0, 12),
             ),
@@ -525,7 +528,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         child: Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16, color: Colors.black54),
+          style: const TextStyle(fontSize: 16, color: HuashuColors.muted),
         ),
       ),
     );
@@ -552,9 +555,9 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           height: totalHeight,
           child: CustomPaint(
             painter: _TopArcPainter(
-              color: const Color(
-                0xFFE53935,
-              ).withValues(alpha: (0.65 + 0.35 * progress).clamp(0.0, 1.0)),
+              color: HuashuColors.danger.withValues(
+                alpha: (0.65 + 0.35 * progress).clamp(0.0, 1.0),
+              ),
             ),
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -567,7 +570,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   child: Icon(
                     Icons.delete_rounded,
                     size: 28 + 10 * progress, // Icon gets larger as you wipe
-                    color: Colors.white,
+                    color: HuashuColors.surface,
                   ),
                 ),
               ),
@@ -589,12 +592,12 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           child: Container(
             height: 74,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.82),
+              color: HuashuColors.surface.withValues(alpha: 0.82),
               borderRadius: BorderRadius.circular(36),
-              border: Border.all(color: const Color(0xFFEDEAF0)),
+              border: Border.all(color: HuashuColors.line),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
+                  color: HuashuColors.ink.withValues(alpha: 0.08),
                   blurRadius: 24,
                   offset: const Offset(0, 12),
                 ),
@@ -730,7 +733,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 ? const Text(
                     '暂无照片信息',
                     style: TextStyle(
-                      color: Color(0xFF1D1D21),
+                      color: HuashuColors.ink,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
@@ -742,7 +745,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                       const Text(
                         '照片信息',
                         style: TextStyle(
-                          color: Color(0xFF1D1D21),
+                          color: HuashuColors.ink,
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0,
@@ -839,7 +842,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         const Center(
           child: Icon(
             Icons.play_circle_fill_rounded,
-            color: Colors.white,
+            color: HuashuColors.surface,
             size: 22,
           ),
         ),
@@ -862,14 +865,20 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     if (item.type == MediaType.video) {
       return DecoratedBox(
         key: loading ? Key('media-thumbnail-loading-${item.id}') : null,
-        decoration: const BoxDecoration(color: Color(0xFF2D333A)),
-        child: Center(child: Icon(icon, color: Colors.white54, size: 18)),
+        decoration: const BoxDecoration(color: HuashuColors.darkroomSoft),
+        child: Center(
+          child: Icon(
+            icon,
+            color: HuashuColors.surface.withValues(alpha: 0.54),
+            size: 18,
+          ),
+        ),
       );
     }
     return Container(
       key: loading ? Key('media-thumbnail-loading-${item.id}') : null,
-      color: const Color(0xFFE8EBEF),
-      child: Center(child: Icon(icon, color: Colors.black45, size: 20)),
+      color: HuashuColors.surfaceAlt,
+      child: Center(child: Icon(icon, color: HuashuColors.muted, size: 20)),
     );
   }
 
@@ -879,7 +888,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     required bool active,
     required VoidCallback onTap,
   }) {
-    final color = active ? const Color(0xFF0066D6) : const Color(0xFF4E5360);
+    final color = active ? HuashuColors.accent : HuashuColors.inkSoft;
     return InkWell(
       key: key,
       onTap: onTap,
@@ -1131,13 +1140,13 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
+                    color: HuashuColors.positive.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.done_all_rounded,
                     size: 48,
-                    color: Color(0xFF4CAF50),
+                    color: HuashuColors.positive,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -1146,7 +1155,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
-                    color: Colors.black87,
+                    color: HuashuColors.ink,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
                   ),
@@ -1157,7 +1166,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.black54,
+                    color: HuashuColors.muted,
                     height: 1.5,
                   ),
                 ),
@@ -1171,10 +1180,10 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black87,
-                    foregroundColor: Colors.white,
+                    backgroundColor: HuashuColors.ink,
+                    foregroundColor: HuashuColors.surface,
                     elevation: 4,
-                    shadowColor: Colors.black26,
+                    shadowColor: HuashuColors.faint,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 32,
                       vertical: 16,
@@ -1199,7 +1208,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
           child: Container(
-            color: Colors.white.withValues(alpha: 0.72),
+            color: HuashuColors.surface.withValues(alpha: 0.72),
             child: SafeArea(
               child: ListView(
                 padding: EdgeInsets.zero,
@@ -1210,20 +1219,20 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: Colors.black87,
+                        color: HuashuColors.ink,
                       ),
                     ),
                   ),
-                  Divider(color: Colors.black.withValues(alpha: 0.1)),
+                  Divider(color: HuashuColors.ink.withValues(alpha: 0.1)),
                   ListTile(
-                    leading: const Icon(Icons.shuffle, color: Colors.black87),
+                    leading: const Icon(Icons.shuffle, color: HuashuColors.ink),
                     title: const Text(
                       'Reset Random Pool',
-                      style: TextStyle(color: Colors.black87),
+                      style: TextStyle(color: HuashuColors.ink),
                     ),
                     subtitle: const Text(
                       'Start a new random round for remaining media',
-                      style: TextStyle(color: Colors.black54),
+                      style: TextStyle(color: HuashuColors.muted),
                     ),
                     onTap: () {
                       Navigator.of(context).pop();
@@ -1231,10 +1240,13 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.settings, color: Colors.black87),
+                    leading: const Icon(
+                      Icons.settings,
+                      color: HuashuColors.ink,
+                    ),
                     title: const Text(
                       'Settings',
-                      style: TextStyle(color: Colors.black87),
+                      style: TextStyle(color: HuashuColors.ink),
                     ),
                     onTap: _openSettingsFromDrawer,
                   ),
@@ -1409,7 +1421,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF555555)),
+            style: const TextStyle(fontSize: 12, color: HuashuColors.muted),
           ),
         ],
       ),
@@ -1850,11 +1862,11 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   duration: const Duration(milliseconds: 300),
                   child: frame != null
                       ? child
-                      : const Center(
+                      : Center(
                           child: Padding(
                             padding: EdgeInsets.all(48),
                             child: CircularProgressIndicator(
-                              color: Colors.black12,
+                              color: Color(0x1A171A1C),
                               strokeWidth: 2,
                             ),
                           ),
@@ -2179,7 +2191,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           child: const Icon(
             Icons.play_arrow_rounded,
             size: 40,
-            color: Colors.white,
+            color: HuashuColors.surface,
           ),
         ),
       ],

@@ -10,11 +10,12 @@ import 'package:rephoto/domain/services/permanent_delete_service.dart';
 import 'package:rephoto/features/home/home_controller.dart';
 import 'package:rephoto/features/import/import_controller.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
+import 'package:rephoto/theme/huashu_theme.dart';
 
-const _importBlue = Color(0xFF0667D8);
-const _importInk = Color(0xFF202126);
-const _importMuted = Color(0xFF686D7A);
-const _importSurface = Color(0xFFFFFAFD);
+const _importBlue = HuashuColors.accent;
+const _importInk = HuashuColors.ink;
+const _importMuted = HuashuColors.muted;
+const _importSurface = HuashuColors.paper;
 
 String _formatBytes(int bytes) {
   if (bytes <= 0) return '0 B';
@@ -224,7 +225,7 @@ class _ImportPageState extends State<ImportPage> {
     if (!mounted) return;
     final selected = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFFF5F5FA),
+      backgroundColor: HuashuColors.surfaceAlt,
       showDragHandle: true,
       builder: (context) {
         return SafeArea(
@@ -569,9 +570,9 @@ class _ImportHeader extends StatelessWidget {
                       onPressed: onBack,
                       icon: const Icon(Icons.close_rounded),
                       iconSize: 28,
-                      color: const Color(0xFF7A7D86),
+                      color: HuashuColors.muted,
                       style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFFEDEEF2),
+                        backgroundColor: HuashuColors.surfaceAlt,
                       ),
                     ),
                   ),
@@ -610,7 +611,7 @@ class _ImportHeader extends StatelessWidget {
                             vertical: 1,
                           ),
                           decoration: const BoxDecoration(
-                            color: Color(0xFFD70015),
+                            color: HuashuColors.danger,
                             borderRadius: BorderRadius.all(
                               Radius.circular(999),
                             ),
@@ -717,7 +718,7 @@ class _ImportGroupHeader extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(10, 5, 4, 7),
           decoration: BoxDecoration(
             color: collapsed
-                ? const Color(0xFFF1F1F6).withValues(alpha: 0.65)
+                ? HuashuColors.surfaceAlt.withValues(alpha: 0.65)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
@@ -744,7 +745,7 @@ class _ImportGroupHeader extends StatelessWidget {
                         Text(
                           '$itemCount 个项目',
                           style: const TextStyle(
-                            color: Color(0xFF9B9EA8),
+                            color: HuashuColors.faint,
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
                           ),
@@ -756,7 +757,7 @@ class _ImportGroupHeader extends StatelessWidget {
                           curve: Curves.easeOutCubic,
                           child: const Icon(
                             Icons.expand_more_rounded,
-                            color: Color(0xFFB0B3BB),
+                            color: HuashuColors.faint,
                             size: 18,
                           ),
                         ),
@@ -827,13 +828,13 @@ class _ImportGridTileState extends State<_ImportGridTile> {
           fit: StackFit.expand,
           children: [
             ColoredBox(
-              color: const Color(0xFFEDEEF2),
+              color: HuashuColors.surfaceAlt,
               child: widget.previewBytes == null
                   ? Icon(
                       widget.item.type == MediaType.video
                           ? Icons.videocam_rounded
                           : Icons.image_rounded,
-                      color: const Color(0xFFB7BAC3),
+                      color: HuashuColors.faint,
                     )
                   : Image.memory(widget.previewBytes!, fit: BoxFit.cover),
             ),
@@ -894,9 +895,9 @@ class _ImportStatusMark extends StatelessWidget {
       height: active ? 26 : 25,
       decoration: BoxDecoration(
         color: imported
-            ? const Color(0xFF32C759)
+            ? HuashuColors.positive
             : failed
-            ? const Color(0xFFFF3B30)
+            ? HuashuColors.danger
             : active
             ? _importBlue
             : Colors.white.withValues(alpha: 0.16),
@@ -1040,12 +1041,12 @@ class _ImportEmptyIllustration extends StatelessWidget {
           width: 158,
           height: 158,
           decoration: BoxDecoration(
-            color: const Color(0xFFF8FBFF),
+            color: HuashuColors.surface,
             borderRadius: BorderRadius.circular(46),
             border: Border.all(color: Colors.white, width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF7DA7E8).withValues(alpha: 0.12),
+                color: HuashuColors.accent.withValues(alpha: 0.12),
                 blurRadius: 34,
                 offset: const Offset(0, 18),
               ),
@@ -1054,7 +1055,7 @@ class _ImportEmptyIllustration extends StatelessWidget {
           child: const Icon(
             Icons.image_search_outlined,
             size: 72,
-            color: Color(0xFF9DBBE8),
+            color: HuashuColors.faint,
           ),
         ),
         const Positioned(
@@ -1089,13 +1090,13 @@ class _ImportFloatingBadge extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF7DA7E8).withValues(alpha: 0.12),
+              color: HuashuColors.accent.withValues(alpha: 0.12),
               blurRadius: 20,
               offset: const Offset(0, 12),
             ),
           ],
         ),
-        child: Icon(icon, color: const Color(0xFF78A4DE), size: 30),
+        child: Icon(icon, color: HuashuColors.accent, size: 30),
       ),
     );
   }
@@ -1109,12 +1110,12 @@ class _ImportEmptyHaloPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final paint = Paint()
       ..style = PaintingStyle.fill
-      ..color = const Color(0xFFEFF3FF);
+      ..color = HuashuColors.accentSoft;
     canvas.drawCircle(center, size.shortestSide * 0.38, paint);
-    paint.color = const Color(0xFFE7EDFC);
+    paint.color = HuashuColors.surfaceAlt;
     canvas.drawCircle(center, size.shortestSide * 0.30, paint);
 
-    final dotPaint = Paint()..color = const Color(0xFF9CB9E5);
+    final dotPaint = Paint()..color = HuashuColors.accent;
     canvas.drawCircle(center + const Offset(-72, -66), 9, dotPaint);
     canvas.drawCircle(center + const Offset(72, 58), 6, dotPaint);
   }
@@ -1167,7 +1168,7 @@ class _AlbumPickerTile extends StatelessWidget {
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F1F7),
+          color: HuashuColors.surfaceAlt,
           borderRadius: BorderRadius.circular(7),
         ),
         child: Icon(icon, color: _importBlue),
@@ -1258,7 +1259,7 @@ class _ImportBottomBar extends StatelessWidget {
                 IconButton(
                   tooltip: '选择储存卡',
                   onPressed: isImporting ? null : onChoose,
-                  color: const Color(0xFF4E5360),
+                  color: HuashuColors.inkSoft,
                   iconSize: 32,
                   icon: const Icon(Icons.folder_open_rounded),
                 ),
@@ -1266,7 +1267,7 @@ class _ImportBottomBar extends StatelessWidget {
                 IconButton(
                   tooltip: '刷新',
                   onPressed: isImporting ? null : onRefresh,
-                  color: const Color(0xFF4E5360),
+                  color: HuashuColors.inkSoft,
                   iconSize: 32,
                   icon: const Icon(Icons.refresh_rounded),
                 ),
@@ -1275,7 +1276,7 @@ class _ImportBottomBar extends StatelessWidget {
                   tooltip: '放进回收站',
                   onPressed: isImporting ? null : onMoveToTrash,
                   color: _importBlue,
-                  disabledColor: const Color(0xFFB9CBE3),
+                  disabledColor: HuashuColors.line,
                   iconSize: 32,
                   icon: const Icon(Icons.delete_outline_rounded),
                 ),
@@ -1284,7 +1285,7 @@ class _ImportBottomBar extends StatelessWidget {
                   onPressed: isImporting ? null : onImport,
                   style: FilledButton.styleFrom(
                     backgroundColor: _importBlue,
-                    disabledBackgroundColor: const Color(0xFFB9CBE3),
+                    disabledBackgroundColor: HuashuColors.line,
                     foregroundColor: Colors.white,
                     disabledForegroundColor: Colors.white.withValues(
                       alpha: 0.72,
@@ -1565,7 +1566,7 @@ class _ImportPreviewStripTile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               ColoredBox(
-                color: const Color(0xFF303238),
+                color: HuashuColors.darkroomSoft,
                 child: previewBytes == null
                     ? Icon(
                         item.type == MediaType.video

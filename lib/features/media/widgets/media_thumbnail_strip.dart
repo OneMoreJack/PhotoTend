@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:rephoto/domain/models/media_item.dart';
+import 'package:rephoto/theme/huashu_theme.dart';
 
 typedef MediaThumbnailBuilder =
     Widget Function(BuildContext context, MediaItem item, bool selected);
@@ -90,16 +91,16 @@ class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
                       borderRadius: BorderRadius.circular(9),
                       border: Border.all(
                         color: selected
-                            ? const Color(0xFF0066D6)
+                            ? HuashuColors.accent
                             : Colors.transparent,
                         width: 2,
                       ),
                       boxShadow: selected
                           ? [
                               BoxShadow(
-                                color: const Color(
-                                  0xFF0066D6,
-                                ).withValues(alpha: 0.28),
+                                color: HuashuColors.accent.withValues(
+                                  alpha: 0.28,
+                                ),
                                 blurRadius: 10,
                                 offset: const Offset(0, 3),
                               ),

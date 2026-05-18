@@ -8,6 +8,7 @@ import 'package:rephoto/features/home/home_controller.dart';
 import 'package:rephoto/features/home/home_page.dart';
 import 'package:rephoto/features/media/media_browser_page.dart';
 import 'package:rephoto/features/media/widgets/video_tile.dart';
+import 'package:rephoto/theme/huashu_theme.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 void main() {
@@ -1236,7 +1237,7 @@ void main() {
         matching: find.byIcon(Icons.shuffle_rounded),
       ),
     );
-    expect(activeIcon.color, const Color(0xFF4E5360));
+    expect(activeIcon.color, HuashuColors.inkSoft);
   });
 
   testWidgets('trash badge is shown only when trash has items', (tester) async {

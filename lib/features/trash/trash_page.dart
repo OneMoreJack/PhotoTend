@@ -7,6 +7,7 @@ import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/domain/services/permanent_delete_service.dart';
 import 'package:rephoto/features/media/widgets/video_tile.dart';
 import 'package:rephoto/features/trash/trash_controller.dart';
+import 'package:rephoto/theme/huashu_theme.dart';
 
 class TrashPageResult {
   const TrashPageResult({
@@ -69,19 +70,19 @@ class _TrashPageState extends State<TrashPage> {
             }
           },
           child: Scaffold(
-            backgroundColor: const Color(0xFFFFFAFD),
+            backgroundColor: HuashuColors.paper,
             appBar: AppBar(
-              backgroundColor: const Color(0xFFFFFAFD),
+              backgroundColor: HuashuColors.paper,
               scrolledUnderElevation: 0,
               leading: IconButton(
                 tooltip: 'Back',
                 icon: const Icon(Icons.arrow_back_rounded),
-                color: const Color(0xFF0066D6),
+                color: HuashuColors.accent,
                 onPressed: _closeWithResult,
               ),
               title: const Text('Trash'),
               titleTextStyle: const TextStyle(
-                color: Color(0xFF1D1D21),
+                color: HuashuColors.ink,
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -96,7 +97,7 @@ class _TrashPageState extends State<TrashPage> {
                     child: Text(
                       _controller.isAllSelected ? 'Deselect' : 'Select',
                       style: const TextStyle(
-                        color: Color(0xFF0066D6),
+                        color: HuashuColors.accent,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
@@ -169,7 +170,7 @@ class _TrashPageState extends State<TrashPage> {
                                         bottom: 8,
                                         child: Icon(
                                           Icons.play_circle_outline_rounded,
-                                          color: Colors.white,
+                                          color: HuashuColors.surface,
                                           size: 25,
                                         ),
                                       ),
@@ -184,7 +185,7 @@ class _TrashPageState extends State<TrashPage> {
                                         height: 22,
                                         decoration: BoxDecoration(
                                           color: selected
-                                              ? const Color(0xFF0066D6)
+                                              ? HuashuColors.accent
                                               : Colors.transparent,
                                           shape: BoxShape.circle,
                                         ),
@@ -192,7 +193,7 @@ class _TrashPageState extends State<TrashPage> {
                                             ? const Icon(
                                                 Icons.check,
                                                 size: 16,
-                                                color: Colors.white,
+                                                color: HuashuColors.surface,
                                               )
                                             : null,
                                       ),
@@ -307,12 +308,12 @@ class _TrashPageState extends State<TrashPage> {
         margin: const EdgeInsets.fromLTRB(17, 8, 17, 24),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: HuashuColors.surface,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFE8E5EB)),
+          border: Border.all(color: HuashuColors.line),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: HuashuColors.ink.withValues(alpha: 0.08),
               blurRadius: 24,
               offset: const Offset(0, 12),
             ),
@@ -326,7 +327,7 @@ class _TrashPageState extends State<TrashPage> {
               child: Text(
                 '${_controller.ids.length} in trash',
                 style: const TextStyle(
-                  color: Color(0xFF555B66),
+                  color: HuashuColors.inkSoft,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0,
@@ -403,10 +404,10 @@ class _TrashPageState extends State<TrashPage> {
     bool active = false,
   }) {
     final foreground = active
-        ? (danger ? const Color(0xFFD92D20) : const Color(0xFF0066D6))
+        ? (danger ? HuashuColors.danger : HuashuColors.accent)
         : danger
-        ? const Color(0xFFD92D20)
-        : const Color(0xFF89909B);
+        ? HuashuColors.danger
+        : HuashuColors.faint;
     final background = active
         ? (danger ? const Color(0xFFFFE3E2) : const Color(0xFFE7F0FF))
         : filledDanger
@@ -418,7 +419,7 @@ class _TrashPageState extends State<TrashPage> {
       style: TextButton.styleFrom(
         backgroundColor: background,
         foregroundColor: foreground,
-        disabledForegroundColor: const Color(0xFF9CA3AF),
+        disabledForegroundColor: HuashuColors.faint,
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         textStyle: const TextStyle(
@@ -477,7 +478,7 @@ class _TrashPageState extends State<TrashPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 15, color: const Color(0xFF6B7280)),
+        Icon(icon, size: 15, color: HuashuColors.muted),
         const SizedBox(width: 4),
         Flexible(
           child: Text(
@@ -485,7 +486,7 @@ class _TrashPageState extends State<TrashPage> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: Color(0xFF555B66),
+              color: HuashuColors.inkSoft,
               fontSize: 13,
               fontWeight: FontWeight.w700,
               letterSpacing: 0,
@@ -630,7 +631,10 @@ class _TrashPageState extends State<TrashPage> {
     return Container(
       color: const Color(0x22000000),
       child: const Center(
-        child: Icon(Icons.image_not_supported_outlined, color: Colors.black45),
+        child: Icon(
+          Icons.image_not_supported_outlined,
+          color: HuashuColors.muted,
+        ),
       ),
     );
   }

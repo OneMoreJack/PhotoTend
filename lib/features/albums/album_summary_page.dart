@@ -12,6 +12,7 @@ import 'package:rephoto/features/import/import_page.dart';
 import 'package:rephoto/features/media/media_browser_page.dart';
 import 'package:rephoto/features/settings/settings_page.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
+import 'package:rephoto/theme/huashu_theme.dart';
 
 class AlbumSummaryPage extends StatefulWidget {
   const AlbumSummaryPage({
@@ -62,7 +63,7 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
             .where((entry) => entry.id == 'all-media')
             .firstOrNull;
         return Scaffold(
-          backgroundColor: const Color(0xFFFFFAFD),
+          backgroundColor: HuashuColors.paper,
           body: SafeArea(
             child: Column(
               children: [
@@ -80,7 +81,7 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 12,
-                              color: Colors.black54,
+                              color: HuashuColors.muted,
                             ),
                           ),
                         ),
@@ -121,7 +122,7 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
                           child: Text(
                             '暂无可显示的照片或视频',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.black54),
+                            style: TextStyle(color: HuashuColors.muted),
                           ),
                         ),
                     ],
@@ -265,7 +266,7 @@ class _AlbumHomeHeader extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Color(0xFF1D1D21),
+                color: HuashuColors.ink,
                 fontSize: 32,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
@@ -277,7 +278,7 @@ class _AlbumHomeHeader extends StatelessWidget {
             tooltip: 'Settings',
             onPressed: onSettings,
             icon: const Icon(Icons.settings_outlined),
-            color: const Color(0xFF4E5360),
+            color: HuashuColors.inkSoft,
             iconSize: 28,
           ),
         ],
@@ -355,7 +356,7 @@ class _AlbumNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? const Color(0xFF0066D6) : const Color(0xFF363A45);
+    final color = active ? HuashuColors.accent : HuashuColors.inkSoft;
     return Tooltip(
       message: label,
       child: InkWell(
@@ -382,7 +383,7 @@ class _AlbumNavItem extends StatelessWidget {
                           vertical: 1,
                         ),
                         decoration: const BoxDecoration(
-                          color: Color(0xFFD70015),
+                          color: HuashuColors.danger,
                           borderRadius: BorderRadius.all(Radius.circular(10)),
                         ),
                         child: Text(
@@ -794,7 +795,7 @@ class _MonthSummaryCard extends StatelessWidget {
           width: 242,
           height: 150,
           decoration: BoxDecoration(
-            color: const Color(0xFFFBFCFD),
+            color: HuashuColors.surfaceAlt,
             borderRadius: BorderRadius.circular(8),
           ),
           child: ClipRRect(
@@ -835,7 +836,7 @@ class _MonthSummaryCard extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF22C55E),
+                        color: HuashuColors.positive,
                         borderRadius: BorderRadius.circular(999),
                         boxShadow: [
                           BoxShadow(
@@ -1074,13 +1075,13 @@ class _SummaryCover extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: isVideo
               ? const [Color(0xFF2F3540), Color(0xFF111827)]
-              : const [Color(0xFFE7EEF6), Color(0xFFD7E1EA)],
+              : const [HuashuColors.surfaceAlt, HuashuColors.line],
         ),
       ),
       child: Center(
         child: Icon(
           isVideo ? Icons.play_circle_fill_rounded : Icons.photo_outlined,
-          color: isVideo ? Colors.white : const Color(0xFF6B7684),
+          color: isVideo ? Colors.white : HuashuColors.muted,
           size: dense ? 28 : 42,
         ),
       ),

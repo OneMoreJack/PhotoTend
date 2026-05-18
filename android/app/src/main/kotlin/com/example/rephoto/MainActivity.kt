@@ -68,6 +68,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "fetchAllMediaItems" -> runAsync(result) { fetchAllMediaItems() }
+                    "fetchUserAlbums" -> runAsync(result) { fetchUserAlbums() }
                     "fetchMediaPage" -> {
                         val offset = call.argument<Int>("offset") ?: 0
                         val limit = call.argument<Int>("limit") ?: 100
@@ -323,6 +324,40 @@ class MainActivity : FlutterActivity() {
         }
         Log.i(logTag, "fetchAllMediaItems merged=${all.size}")
         return all
+    }
+
+    private fun fetchUserAlbums(): List<Map<String, Any>> {
+        val albums = linkedMapOf<String, MutableMap<String, Any>>()
+        collectAlbums(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, albums)
+        collectAlbums(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, albums)
+        return albums.values
+            .sortedBy { (it["name"] as? String)?.lowercase(Locale.getDefault()) ?: "" }
+    }
+
+    private fun collectAlbums(
+        uri: Uri,
+        albums: LinkedHashMap<String, MutableMap<String, Any>>,
+    ) {
+        val projection = arrayOf(
+            MediaStore.MediaColumns.BUCKET_ID,
+            MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
+        )
+        contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_ID)
+            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_DISPLAY_NAME)
+            while (cursor.moveToNext()) {
+                val id = cursor.getString(idIndex) ?: continue
+                val name = cursor.getString(nameIndex) ?: continue
+                val existing = albums.getOrPut(id) {
+                    mutableMapOf<String, Any>(
+                        "id" to id,
+                        "name" to name,
+                        "count" to 0,
+                    )
+                }
+                existing["count"] = ((existing["count"] as? Int) ?: 0) + 1
+            }
+        }
     }
 
     private fun fetchMediaPage(offset: Int, limit: Int): List<NativeMediaItem> {

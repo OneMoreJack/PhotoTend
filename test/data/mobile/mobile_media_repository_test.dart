@@ -306,4 +306,29 @@ void main() {
     expect((calls[2].arguments as Map)['sourceUri'], items.single.pathOrUri);
     expect((calls[2].arguments as Map)['albumName'], 'RePhoto');
   });
+
+  test('mobile media repository fetches user albums from platform', () async {
+    const channel = MethodChannelMobileMediaRepository.channel;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'fetchUserAlbums') {
+            return [
+              {'id': 'album-1', 'name': '旅行', 'count': 12},
+              {'id': 'album-2', 'name': '家庭', 'count': 3},
+            ];
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    final repo = MethodChannelMobileMediaRepository();
+    final albums = await repo.fetchUserAlbums();
+
+    expect(albums.map((album) => album.name), ['旅行', '家庭']);
+    expect(albums.first.id, 'album-1');
+    expect(albums.first.count, 12);
+  });
 }

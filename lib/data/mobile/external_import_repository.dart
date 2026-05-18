@@ -122,6 +122,7 @@ class FakeExternalImportRepository implements ExternalImportRepository {
 
   final List<ExternalImportItem> _items;
   final List<String> importedIds = <String>[];
+  final List<String> importedAlbumNames = <String>[];
   String? savedRoot = 'content://tree/fake';
 
   @override
@@ -151,6 +152,7 @@ class FakeExternalImportRepository implements ExternalImportRepository {
     required String albumName,
   }) async {
     importedIds.add(item.id);
+    importedAlbumNames.add(albumName);
     return 'content://media/imported/${item.id}';
   }
 }

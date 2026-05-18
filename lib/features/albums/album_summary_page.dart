@@ -173,9 +173,14 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
   }
 
   Future<void> _openImport() async {
-    await Navigator.of(
-      context,
-    ).push<void>(MaterialPageRoute(builder: (_) => const ImportPage()));
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ImportPage(
+          homeController: widget.controller,
+          deleteService: widget.deleteService,
+        ),
+      ),
+    );
   }
 
   Map<String, MediaItem> _mediaByIdForEntries(List<AlbumSummaryEntry> entries) {
@@ -314,7 +319,7 @@ class _AlbumBottomNav extends StatelessWidget {
               ),
               _AlbumNavItem(
                 key: const Key('album-nav-import'),
-                icon: Icons.calendar_month_outlined,
+                icon: Icons.drive_folder_upload_outlined,
                 label: 'Import',
                 onTap: onImport,
               ),

@@ -9,6 +9,7 @@ class ImportController extends ChangeNotifier {
 
   final ExternalImportRepository _repository;
   final List<ExternalImportItem> _items = <ExternalImportItem>[];
+  final List<ExternalImportItem> _trashedItems = <ExternalImportItem>[];
   final Set<String> _selectedIds = <String>{};
   final Map<String, ImportItemStatus> _statuses = <String, ImportItemStatus>{};
 
@@ -20,12 +21,23 @@ class ImportController extends ChangeNotifier {
   int importTotalCount = 0;
   int importCompletedCount = 0;
 
-  List<ExternalImportItem> get items => List.unmodifiable(_items);
+  List<ExternalImportItem> get items => List.unmodifiable(_visibleItems);
+  List<ExternalImportItem> get trashedItems => List.unmodifiable(_trashedItems);
   Set<String> get selectedIds => Set.unmodifiable(_selectedIds);
   int get selectedCount => _selectedIds.length;
+  int get trashCount => _trashedItems.length;
+  int get totalSizeBytes => _sumSizeBytes(items);
+  int get selectedSizeBytes => _sumSizeBytes(
+    _visibleItems.where((item) => _selectedIds.contains(item.id)),
+  );
   double get importProgress {
     if (importTotalCount <= 0) return 0;
     return (importCompletedCount / importTotalCount).clamp(0.0, 1.0);
+  }
+
+  List<ExternalImportItem> get _visibleItems {
+    final trashedIds = _trashedItems.map((item) => item.id).toSet();
+    return _items.where((item) => !trashedIds.contains(item.id)).toList();
   }
 
   ImportItemStatus statusFor(String id) {
@@ -55,7 +67,10 @@ class ImportController extends ChangeNotifier {
         ..clear()
         ..addAll(scanned);
       _syncCurrentItems(scanned);
-      _selectedIds.removeWhere((id) => !_items.any((item) => item.id == id));
+      _syncTrash(scanned);
+      _selectedIds.removeWhere(
+        (id) => !_visibleItems.any((item) => item.id == id),
+      );
       needsStorageCard = scanned.isEmpty;
       statusMessage = scanned.isEmpty ? '没有找到可导入的照片或视频。' : null;
     } catch (_) {
@@ -86,6 +101,7 @@ class ImportController extends ChangeNotifier {
         ..addAll(scanned);
       _selectedIds.clear();
       _statuses.clear();
+      _trashedItems.clear();
       _syncCurrentItems(scanned);
       needsStorageCard = scanned.isEmpty;
       statusMessage = scanned.isEmpty ? '没有找到可导入的照片或视频。' : null;
@@ -112,12 +128,79 @@ class ImportController extends ChangeNotifier {
     _selectedIds
       ..clear()
       ..addAll(
-        _items
+        _visibleItems
             .where((item) => statusFor(item.id) != ImportItemStatus.imported)
             .map((item) => item.id),
       );
     completionMessage = null;
     notifyListeners();
+  }
+
+  void selectPending(Iterable<String> ids) {
+    if (isImporting) return;
+    _selectedIds.addAll(
+      ids.where((id) => statusFor(id) != ImportItemStatus.imported),
+    );
+    completionMessage = null;
+    notifyListeners();
+  }
+
+  bool arePendingSelected(Iterable<String> ids) {
+    final pendingIds = ids
+        .where((id) => statusFor(id) != ImportItemStatus.imported)
+        .toList(growable: false);
+    return pendingIds.isNotEmpty &&
+        pendingIds.every((id) => _selectedIds.contains(id));
+  }
+
+  void togglePendingSelection(Iterable<String> ids) {
+    if (isImporting) return;
+    final pendingIds = ids
+        .where((id) => statusFor(id) != ImportItemStatus.imported)
+        .toList(growable: false);
+    if (pendingIds.isEmpty) return;
+    if (pendingIds.every((id) => _selectedIds.contains(id))) {
+      _selectedIds.removeAll(pendingIds);
+    } else {
+      _selectedIds.addAll(pendingIds);
+    }
+    completionMessage = null;
+    notifyListeners();
+  }
+
+  void moveSelectedToTrash() {
+    if (isImporting || _selectedIds.isEmpty) return;
+    final selectedItems = _visibleItems
+        .where((item) => _selectedIds.contains(item.id))
+        .toList(growable: false);
+    final trashedIds = _trashedItems.map((item) => item.id).toSet();
+    _trashedItems.addAll(
+      selectedItems.where((item) => !trashedIds.contains(item.id)),
+    );
+    _selectedIds.clear();
+    completionMessage = null;
+    notifyListeners();
+  }
+
+  void restoreFromTrash(String id) {
+    if (isImporting) return;
+    _trashedItems.removeWhere((item) => item.id == id);
+    completionMessage = null;
+    notifyListeners();
+  }
+
+  void removeFromTrash(Set<String> ids) {
+    if (isImporting || ids.isEmpty) return;
+    _trashedItems.removeWhere((item) => ids.contains(item.id));
+    completionMessage = null;
+    notifyListeners();
+  }
+
+  Future<void> importPendingOrSelected({String albumName = 'RePhoto'}) async {
+    if (selectedCount == 0) {
+      selectAllPending();
+    }
+    await importSelected(albumName: albumName);
   }
 
   Future<void> importSelected({String albumName = 'RePhoto'}) async {
@@ -127,7 +210,7 @@ class ImportController extends ChangeNotifier {
     importTotalCount = _selectedIds.length;
     importCompletedCount = 0;
     notifyListeners();
-    final byId = {for (final item in _items) item.id: item};
+    final byId = {for (final item in _visibleItems) item.id: item};
     final ids = List<String>.from(_selectedIds);
     for (final id in ids) {
       final item = byId[id];
@@ -161,5 +244,24 @@ class ImportController extends ChangeNotifier {
   void _syncCurrentItems(List<ExternalImportItem> items) {
     final currentIds = items.map((item) => item.id).toSet();
     _statuses.removeWhere((id, _) => !currentIds.contains(id));
+  }
+
+  void _syncTrash(List<ExternalImportItem> items) {
+    final byId = {for (final item in items) item.id: item};
+    _trashedItems
+      ..removeWhere((item) => !byId.containsKey(item.id))
+      ..replaceRange(
+        0,
+        _trashedItems.length,
+        _trashedItems.map((item) => byId[item.id]!).toList(growable: false),
+      );
+  }
+
+  int _sumSizeBytes(Iterable<ExternalImportItem> items) {
+    var total = 0;
+    for (final item in items) {
+      total += item.sizeBytes ?? 0;
+    }
+    return total;
   }
 }

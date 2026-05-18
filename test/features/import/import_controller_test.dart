@@ -113,4 +113,118 @@ void main() {
       expect(controller.statusMessage, '请连接外接储存卡，或选择储存卡目录。');
     },
   );
+
+  test('controller toggles a pending selection group', () async {
+    final repo = FakeExternalImportRepository([
+      ExternalImportItem(
+        id: 'a',
+        type: MediaType.photo,
+        displayName: 'a.jpg',
+        pathOrUri: 'content://doc/a',
+      ),
+      ExternalImportItem(
+        id: 'b',
+        type: MediaType.photo,
+        displayName: 'b.jpg',
+        pathOrUri: 'content://doc/b',
+      ),
+      ExternalImportItem(
+        id: 'c',
+        type: MediaType.photo,
+        displayName: 'c.jpg',
+        pathOrUri: 'content://doc/c',
+      ),
+    ]);
+    final controller = ImportController(repository: repo);
+
+    await controller.refresh();
+    controller.togglePendingSelection(['a', 'b']);
+
+    expect(controller.selectedIds, {'a', 'b'});
+    expect(controller.arePendingSelected(['a', 'b']), isTrue);
+
+    controller.togglePendingSelection(['a', 'b']);
+
+    expect(controller.selectedIds, isEmpty);
+    expect(controller.arePendingSelected(['a', 'b']), isFalse);
+  });
+
+  test(
+    'controller moves selected import items to trash and restores them',
+    () async {
+      final repo = FakeExternalImportRepository([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+        ExternalImportItem(
+          id: 'b',
+          type: MediaType.photo,
+          displayName: 'b.jpg',
+          pathOrUri: 'content://doc/b',
+        ),
+      ]);
+      final controller = ImportController(repository: repo);
+
+      await controller.refresh();
+      controller.toggleSelection('a');
+      controller.moveSelectedToTrash();
+
+      expect(controller.items.map((item) => item.id), ['b']);
+      expect(controller.trashedItems.map((item) => item.id), ['a']);
+      expect(controller.selectedIds, isEmpty);
+
+      controller.restoreFromTrash('a');
+
+      expect(controller.items.map((item) => item.id), ['a', 'b']);
+      expect(controller.trashedItems, isEmpty);
+    },
+  );
+
+  test('controller imports selected items into requested album', () async {
+    final repo = FakeExternalImportRepository([
+      ExternalImportItem(
+        id: 'a',
+        type: MediaType.photo,
+        displayName: 'a.jpg',
+        pathOrUri: 'content://doc/a',
+      ),
+    ]);
+    final controller = ImportController(repository: repo);
+
+    await controller.refresh();
+    controller.toggleSelection('a');
+    await controller.importSelected(albumName: '旅行');
+
+    expect(repo.importedAlbumNames, ['旅行']);
+  });
+
+  test(
+    'controller imports all visible pending items when nothing is selected',
+    () async {
+      final repo = FakeExternalImportRepository([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+        ExternalImportItem(
+          id: 'b',
+          type: MediaType.photo,
+          displayName: 'b.jpg',
+          pathOrUri: 'content://doc/b',
+        ),
+      ]);
+      final controller = ImportController(repository: repo);
+
+      await controller.refresh();
+      await controller.importPendingOrSelected(albumName: '你的图库');
+
+      expect(repo.importedIds, ['a', 'b']);
+      expect(controller.importTotalCount, 2);
+    },
+  );
 }

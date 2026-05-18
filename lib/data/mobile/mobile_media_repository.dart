@@ -1,6 +1,14 @@
 import 'package:flutter/services.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 
+class MediaAlbum {
+  const MediaAlbum({required this.id, required this.name, required this.count});
+
+  final String id;
+  final String name;
+  final int count;
+}
+
 abstract class MobileMediaRepository {
   Future<List<MediaItem>> fetchAllMediaItems();
   Future<List<MediaItem>> fetchMediaPage({
@@ -23,6 +31,7 @@ abstract class MobileMediaRepository {
     String package,
     String? activity,
   );
+  Future<List<MediaAlbum>> fetchUserAlbums();
 }
 
 class MethodChannelMobileMediaRepository implements MobileMediaRepository {
@@ -201,6 +210,22 @@ class MethodChannelMobileMediaRepository implements MobileMediaRepository {
     });
   }
 
+  @override
+  Future<List<MediaAlbum>> fetchUserAlbums() async {
+    final result = await channel.invokeMethod<List<dynamic>>('fetchUserAlbums');
+    return (result ?? const <dynamic>[])
+        .whereType<Map<dynamic, dynamic>>()
+        .map(
+          (raw) => MediaAlbum(
+            id: (raw['id'] ?? '').toString(),
+            name: (raw['name'] ?? '').toString(),
+            count: _intFromRaw(raw['count']) ?? 0,
+          ),
+        )
+        .where((album) => album.id.isNotEmpty && album.name.isNotEmpty)
+        .toList(growable: false);
+  }
+
   DateTime? _createdAtFromRaw(Object? raw) {
     if (raw == null) {
       return null;
@@ -353,4 +378,9 @@ class FakeMobileMediaRepository implements MobileMediaRepository {
     String package,
     String? activity,
   ) async {}
+
+  @override
+  Future<List<MediaAlbum>> fetchUserAlbums() async {
+    return const <MediaAlbum>[];
+  }
 }

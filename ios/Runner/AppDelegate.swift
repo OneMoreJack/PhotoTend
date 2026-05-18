@@ -38,6 +38,8 @@ import UIKit
           result(self.fetchAllMediaItems())
         case "fetchAllIds":
           result(self.fetchAllMediaIds())
+        case "fetchUserAlbums":
+          result(self.fetchUserAlbums())
         case "permanentDelete":
           self.permanentDelete(call: call, result: result)
         case "getDeviceModel":
@@ -106,6 +108,26 @@ import UIKit
     return fetchAllMediaItems().compactMap { item in
       item["id"] as? String
     }
+  }
+
+  private func fetchUserAlbums() -> [[String: Any]] {
+    let collections = PHAssetCollection.fetchAssetCollections(
+      with: .album,
+      subtype: .albumRegular,
+      options: nil
+    )
+    var albums: [[String: Any]] = []
+    collections.enumerateObjects { collection, _, _ in
+      let assets = PHAsset.fetchAssets(in: collection, options: nil)
+      albums.append(
+        [
+          "id": collection.localIdentifier,
+          "name": collection.localizedTitle ?? "未命名相簿",
+          "count": assets.count,
+        ]
+      )
+    }
+    return albums
   }
 
   private func fetchAllMediaItems() -> [[String: Any?]] {

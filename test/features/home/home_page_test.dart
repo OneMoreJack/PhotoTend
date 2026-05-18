@@ -120,6 +120,48 @@ void main() {
     expect(find.byKey(const Key('current-media-preview')), findsNothing);
   });
 
+  testWidgets('bottom import tab opens the dedicated import page', (
+    tester,
+  ) async {
+    const importChannel = MethodChannel('rephoto/external_import');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(importChannel, (call) async {
+          if (call.method == 'getSavedImportRoot') {
+            return null;
+          }
+          if (call.method == 'scanImportRoot') {
+            return <Map<String, Object?>>[];
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(importChannel, null);
+    });
+
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'recent',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13),
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14),
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: HomePage(controller: controller)),
+    );
+
+    await tester.tap(find.byKey(const Key('album-nav-import')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('import-page')), findsOneWidget);
+    expect(find.text('导入'), findsWidgets);
+  });
+
   testWidgets('home header exposes settings entry', (tester) async {
     final controller = HomeController(
       initialMediaItems: [

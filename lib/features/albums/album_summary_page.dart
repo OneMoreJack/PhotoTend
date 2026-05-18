@@ -8,6 +8,7 @@ import 'package:rephoto/domain/models/album_summary_entry.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/domain/services/permanent_delete_service.dart';
 import 'package:rephoto/features/home/home_controller.dart';
+import 'package:rephoto/features/import/import_page.dart';
 import 'package:rephoto/features/media/media_browser_page.dart';
 import 'package:rephoto/features/settings/settings_page.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
@@ -128,6 +129,7 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
                 ),
                 _AlbumBottomNav(
                   trashCount: widget.controller.trashCount,
+                  onImport: _openImport,
                   onTrash: _openTrash,
                 ),
               ],
@@ -168,6 +170,12 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
     if (action == SettingsAction.resetRandomPool) {
       widget.controller.resetRandomPool();
     }
+  }
+
+  Future<void> _openImport() async {
+    await Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => const ImportPage()));
   }
 
   Map<String, MediaItem> _mediaByIdForEntries(List<AlbumSummaryEntry> entries) {
@@ -274,9 +282,14 @@ class _AlbumHomeHeader extends StatelessWidget {
 }
 
 class _AlbumBottomNav extends StatelessWidget {
-  const _AlbumBottomNav({required this.trashCount, required this.onTrash});
+  const _AlbumBottomNav({
+    required this.trashCount,
+    required this.onImport,
+    required this.onTrash,
+  });
 
   final int trashCount;
+  final VoidCallback onImport;
   final VoidCallback onTrash;
 
   @override
@@ -300,9 +313,10 @@ class _AlbumBottomNav extends StatelessWidget {
                 onTap: () {},
               ),
               _AlbumNavItem(
+                key: const Key('album-nav-import'),
                 icon: Icons.calendar_month_outlined,
                 label: 'Import',
-                onTap: () {},
+                onTap: onImport,
               ),
               _AlbumNavItem(
                 icon: Icons.delete_outline,
@@ -320,6 +334,7 @@ class _AlbumBottomNav extends StatelessWidget {
 
 class _AlbumNavItem extends StatelessWidget {
   const _AlbumNavItem({
+    super.key,
     required this.icon,
     required this.label,
     required this.onTap,

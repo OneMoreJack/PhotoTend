@@ -1,6 +1,7 @@
 package com.example.rephoto
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,9 +11,13 @@ import android.media.ExifInterface
 import android.net.Uri
 import android.location.Geocoder
 import android.os.Build
+import android.os.Environment
+import android.os.storage.StorageManager
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Size
 import android.util.Log
+import android.webkit.MimeTypeMap
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
@@ -20,16 +25,20 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.Locale
 
 class MainActivity : FlutterActivity() {
     private val logTag = "RePhotoMedia"
     private val permissionsChannelName = "rephoto/mobile_permissions"
     private val mediaChannelName = "rephoto/mobile_media"
+    private val externalImportChannelName = "rephoto/external_import"
     private val requestCodeMediaRead = 9201
     private val requestCodeDeleteMedia = 9202
+    private val requestCodeImportRoot = 9203
     private var pendingPermissionResult: MethodChannel.Result? = null
     private var pendingDeleteResult: MethodChannel.Result? = null
+    private var pendingImportRootResult: MethodChannel.Result? = null
     private var pendingDeleteIds: Set<String>? = null
     private var useLegacyPaging = false
     private var legacyMediaSnapshot: List<NativeMediaItem>? = null
@@ -38,6 +47,11 @@ class MainActivity : FlutterActivity() {
     }
     private val locationCachePrefix = "location_v1_"
     private val aliasCachePrefix = "alias_v1_"
+    private val externalImportPrefs by lazy {
+        getSharedPreferences("rephoto_external_import", MODE_PRIVATE)
+    }
+    private val importRootUriKey = "import_root_uri"
+    private val importFingerprintPrefix = "imported_v1_"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -163,6 +177,45 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, externalImportChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getSavedImportRoot" -> result.success(readSavedImportRoot())
+                    "requestImportRoot" -> requestImportRoot(result)
+                    "scanImportRoot" -> runAsync(result) { scanImportRoot().map { it.toMap() } }
+                    "fetchImportPreviewImageData" -> {
+                        val pathOrUri = call.argument<String>("pathOrUri")
+                        if (pathOrUri.isNullOrBlank()) {
+                            result.success(null)
+                        } else {
+                            runAsync(result) { fetchExternalPreviewImageData(pathOrUri) }
+                        }
+                    }
+                    "fetchImportFullImageData" -> {
+                        val pathOrUri = call.argument<String>("pathOrUri")
+                        if (pathOrUri.isNullOrBlank()) {
+                            result.success(null)
+                        } else {
+                            runAsync(result) { fetchExternalFullImageData(pathOrUri) }
+                        }
+                    }
+                    "importExternalMedia" -> {
+                        val sourceUri = call.argument<String>("sourceUri")
+                        val displayName = call.argument<String>("displayName")
+                        val type = call.argument<String>("type")
+                        val albumName = call.argument<String>("albumName") ?: "RePhoto"
+                        if (sourceUri.isNullOrBlank() || displayName.isNullOrBlank()) {
+                            result.error("INVALID_ARGUMENT", "sourceUri/displayName is empty", null)
+                        } else {
+                            runAsync(result) {
+                                importExternalMedia(sourceUri, displayName, type, albumName)
+                            }
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     @Suppress("DEPRECATION")
@@ -178,6 +231,26 @@ class MainActivity : FlutterActivity() {
             }
             pendingDeleteResult = null
             pendingDeleteIds = null
+        } else if (requestCode == requestCodeImportRoot) {
+            val result = pendingImportRootResult
+            pendingImportRootResult = null
+            if (resultCode == android.app.Activity.RESULT_OK && data?.data != null) {
+                val uri = data.data!!
+                val flags = data.flags and (
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                try {
+                    contentResolver.takePersistableUriPermission(uri, flags)
+                } catch (error: Exception) {
+                    Log.w(logTag, "Persist import root permission failed", error)
+                }
+                val value = uri.toString()
+                externalImportPrefs.edit().putString(importRootUriKey, value).apply()
+                result?.success(value)
+            } else {
+                result?.success(null)
+            }
         }
     }
 
@@ -745,6 +818,285 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun readSavedImportRoot(): String? {
+        val value = externalImportPrefs.getString(importRootUriKey, null)
+        if (value.isNullOrBlank()) return null
+        val uri = Uri.parse(value)
+        val hasPermission = contentResolver.persistedUriPermissions.any {
+            it.uri == uri && it.isReadPermission
+        }
+        return if (hasPermission) value else null
+    }
+
+    private fun requestImportRoot(result: MethodChannel.Result) {
+        if (pendingImportRootResult != null) {
+            result.error("BUSY", "Import root picker is already open", null)
+            return
+        }
+        pendingImportRootResult = result
+        val intent = buildImportRootPickerIntent().apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            )
+            putExtra("android.provider.extra.SHOW_ADVANCED", true)
+        }
+        @Suppress("DEPRECATION")
+        startActivityForResult(intent, requestCodeImportRoot)
+    }
+
+    private fun buildImportRootPickerIntent(): Intent {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                val storageManager = getSystemService(StorageManager::class.java)
+                val removable = storageManager.storageVolumes.firstOrNull { volume ->
+                    volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED
+                }
+                val intent = removable?.createOpenDocumentTreeIntent()
+                if (intent != null) {
+                    return intent
+                }
+            } catch (error: Exception) {
+                Log.w(logTag, "Unable to open picker at removable storage root", error)
+            }
+        }
+        return Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+    }
+
+    private fun scanImportRoot(): List<NativeExternalImportItem> {
+        val root = readSavedImportRoot() ?: return emptyList()
+        val treeUri = Uri.parse(root)
+        val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+        val items = mutableListOf<NativeExternalImportItem>()
+        scanDocumentTree(treeUri, rootDocumentId, items)
+        return items.sortedByDescending { it.createdAtMillis }
+    }
+
+    private fun scanDocumentTree(
+        treeUri: Uri,
+        documentId: String,
+        items: MutableList<NativeExternalImportItem>,
+    ) {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+            DocumentsContract.Document.COLUMN_SIZE,
+        )
+        contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val modifiedColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+            val sizeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            while (cursor.moveToNext()) {
+                val childId = readString(cursor, idColumn) ?: continue
+                val mimeType = readString(cursor, mimeColumn) ?: ""
+                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    scanDocumentTree(treeUri, childId, items)
+                    continue
+                }
+                val name = readString(cursor, nameColumn) ?: childId.substringAfterLast('/')
+                val mediaType = externalMediaType(name, mimeType) ?: continue
+                val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId)
+                items.add(
+                    NativeExternalImportItem(
+                        id = documentUri.toString(),
+                        type = mediaType,
+                        displayName = name,
+                        createdAtMillis = readLong(cursor, modifiedColumn) ?: 0L,
+                        sizeBytes = readLong(cursor, sizeColumn),
+                        pathOrUri = documentUri.toString(),
+                        imported = isPreviouslyImported(name, readLong(cursor, sizeColumn), readLong(cursor, modifiedColumn) ?: 0L),
+                    )
+                )
+            }
+        }
+    }
+
+    private fun externalMediaType(displayName: String, mimeType: String): String? {
+        if (mimeType.startsWith("image/")) return "photo"
+        if (mimeType.startsWith("video/")) return "video"
+        val lower = displayName.lowercase(Locale.US)
+        return when {
+            lower.endsWith(".jpg") ||
+                lower.endsWith(".jpeg") ||
+                lower.endsWith(".png") ||
+                lower.endsWith(".heic") ||
+                lower.endsWith(".heif") ||
+                lower.endsWith(".webp") -> "photo"
+            lower.endsWith(".mp4") ||
+                lower.endsWith(".mov") ||
+                lower.endsWith(".m4v") ||
+                lower.endsWith(".avi") ||
+                lower.endsWith(".mkv") -> "video"
+            else -> null
+        }
+    }
+
+    private fun fetchExternalPreviewImageData(pathOrUri: String): ByteArray? {
+        val uri = Uri.parse(pathOrUri)
+        val bitmap = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentResolver.loadThumbnail(uri, Size(768, 768), null)
+            } else {
+                contentResolver.openInputStream(uri)?.use {
+                    BitmapFactory.decodeStream(it)
+                }
+            }
+        } catch (error: Exception) {
+            Log.d(logTag, "fetchExternalPreviewImageData failed: ${error.message}")
+            null
+        } ?: return null
+
+        return ByteArrayOutputStream().use { output ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
+            output.toByteArray()
+        }
+    }
+
+    private fun fetchExternalFullImageData(pathOrUri: String): ByteArray? {
+        val uri = Uri.parse(pathOrUri)
+        return try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                input.readBytes()
+            }
+        } catch (error: Exception) {
+            Log.d(logTag, "fetchExternalFullImageData failed: ${error.message}")
+            null
+        }
+    }
+
+    private fun importExternalMedia(
+        sourceUriValue: String,
+        displayName: String,
+        requestedType: String?,
+        albumName: String,
+    ): String {
+        val sourceUri = Uri.parse(sourceUriValue)
+        val sourceMime = contentResolver.getType(sourceUri)
+            ?: mimeTypeFromName(displayName)
+            ?: if (requestedType == "video") "video/mp4" else "image/jpeg"
+        val mediaType = if (requestedType == "video" || sourceMime.startsWith("video/")) {
+            "video"
+        } else {
+            "photo"
+        }
+        val safeName = sanitizeDisplayName(displayName, mediaType)
+        val collection = if (mediaType == "video") {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            } else {
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            }
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            } else {
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            }
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
+            put(MediaStore.MediaColumns.MIME_TYPE, sourceMime)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val baseDir = if (mediaType == "video") {
+                    Environment.DIRECTORY_MOVIES
+                } else {
+                    Environment.DIRECTORY_PICTURES
+                }
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "$baseDir/$albumName")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+        }
+        val destinationUri = contentResolver.insert(collection, values)
+            ?: throw IllegalStateException("Unable to create MediaStore item")
+        try {
+            contentResolver.openInputStream(sourceUri).use { input ->
+                contentResolver.openOutputStream(destinationUri).use { output ->
+                    if (input == null || output == null) {
+                        throw IllegalStateException("Unable to open import streams")
+                    }
+                    input.copyTo(output)
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val completeValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.IS_PENDING, 0)
+                }
+                contentResolver.update(destinationUri, completeValues, null, null)
+            }
+            rememberImported(sourceUri, displayName)
+            return destinationUri.toString()
+        } catch (error: Exception) {
+            try {
+                contentResolver.delete(destinationUri, null, null)
+            } catch (_: Exception) {}
+            throw error
+        }
+    }
+
+    private fun mimeTypeFromName(displayName: String): String? {
+        val extension = MimeTypeMap.getFileExtensionFromUrl(displayName)
+            .takeUnless { it.isNullOrBlank() }
+            ?: displayName.substringAfterLast('.', missingDelimiterValue = "")
+        if (extension.isBlank()) return null
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase(Locale.US))
+    }
+
+    private fun sanitizeDisplayName(displayName: String, mediaType: String): String {
+        val name = File(displayName).name.trim().takeUnless { it.isEmpty() }
+            ?: if (mediaType == "video") "RePhoto-import.mp4" else "RePhoto-import.jpg"
+        return name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+    }
+
+    private fun rememberImported(sourceUri: Uri, displayName: String) {
+        val fingerprint = buildImportFingerprint(
+            displayName,
+            queryDocumentLong(sourceUri, DocumentsContract.Document.COLUMN_SIZE),
+            queryDocumentLong(sourceUri, DocumentsContract.Document.COLUMN_LAST_MODIFIED) ?: 0L,
+        )
+        externalImportPrefs.edit()
+            .putBoolean("$importFingerprintPrefix$fingerprint", true)
+            .apply()
+    }
+
+    private fun isPreviouslyImported(
+        displayName: String,
+        sizeBytes: Long?,
+        modifiedAtMillis: Long,
+    ): Boolean {
+        val fingerprint = buildImportFingerprint(displayName, sizeBytes, modifiedAtMillis)
+        return externalImportPrefs.getBoolean("$importFingerprintPrefix$fingerprint", false)
+    }
+
+    private fun buildImportFingerprint(
+        displayName: String,
+        sizeBytes: Long?,
+        modifiedAtMillis: Long,
+    ): String {
+        return listOf(
+            displayName.trim().lowercase(Locale.US),
+            sizeBytes?.toString() ?: "",
+            modifiedAtMillis.toString(),
+        ).joinToString("|")
+    }
+
+    private fun queryDocumentLong(uri: Uri, columnName: String): Long? {
+        return try {
+            contentResolver.query(uri, arrayOf(columnName), null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                readLong(cursor, cursor.getColumnIndex(columnName))
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun resolveContentUri(baseUri: Uri, rawId: String): Uri? {
         val numericId = rawId.toLongOrNull() ?: return null
         return ContentUris.withAppendedId(baseUri, numericId)
@@ -894,6 +1246,29 @@ class MainActivity : FlutterActivity() {
                 "pathOrUri" to pathOrUri,
                 "sizeBytes" to sizeBytes,
                 "size" to sizeBytes,
+            )
+        }
+    }
+
+    private data class NativeExternalImportItem(
+        val id: String,
+        val type: String,
+        val displayName: String,
+        val createdAtMillis: Long,
+        val sizeBytes: Long?,
+        val pathOrUri: String,
+        val imported: Boolean,
+    ) {
+        fun toMap(): Map<String, Any?> {
+            return mapOf(
+                "id" to id,
+                "type" to type,
+                "displayName" to displayName,
+                "createdAtMillis" to createdAtMillis,
+                "sizeBytes" to sizeBytes,
+                "size" to sizeBytes,
+                "pathOrUri" to pathOrUri,
+                "imported" to imported,
             )
         }
     }

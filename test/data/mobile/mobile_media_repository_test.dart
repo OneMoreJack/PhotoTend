@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rephoto/data/mobile/external_import_repository.dart';
 import 'package:rephoto/data/mobile/mobile_media_repository.dart';
 import 'package:rephoto/data/mobile/mobile_permissions_service.dart';
 import 'package:rephoto/domain/models/media_item.dart';
@@ -249,5 +250,60 @@ void main() {
     final service = MethodChannelMobilePermissionsService();
     final status = await service.requestMediaReadPermission();
     expect(status, MediaPermissionStatus.granted);
+  });
+
+  test('external import repository scans and imports selected media', () async {
+    const channel = MethodChannelExternalImportRepository.channel;
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          switch (call.method) {
+            case 'getSavedImportRoot':
+              return 'content://tree/sdcard';
+            case 'scanImportRoot':
+              return [
+                {
+                  'id': 'content://tree/sdcard/document/1',
+                  'type': 'photo',
+                  'displayName': 'IMG_0001.JPG',
+                  'createdAtMillis': 1735689600000,
+                  'sizeBytes': 4096,
+                  'pathOrUri': 'content://tree/sdcard/document/1',
+                  'imported': true,
+                },
+              ];
+            case 'importExternalMedia':
+              return 'content://media/external/images/media/99';
+            case 'fetchImportFullImageData':
+              return Uint8List.fromList([1, 2, 3]);
+          }
+          return null;
+        });
+
+    final repo = MethodChannelExternalImportRepository();
+
+    expect(await repo.getSavedImportRoot(), 'content://tree/sdcard');
+    final items = await repo.scanImportRoot();
+    final importedUri = await repo.importExternalMedia(
+      items.single,
+      albumName: 'RePhoto',
+    );
+    final fullBytes = await repo.fetchFullImageData(items.single.pathOrUri);
+
+    expect(items.single.id, 'content://tree/sdcard/document/1');
+    expect(items.single.type, MediaType.photo);
+    expect(items.single.displayName, 'IMG_0001.JPG');
+    expect(items.single.imported, isTrue);
+    expect(importedUri, 'content://media/external/images/media/99');
+    expect(fullBytes, [1, 2, 3]);
+    expect(calls.map((call) => call.method), [
+      'getSavedImportRoot',
+      'scanImportRoot',
+      'importExternalMedia',
+      'fetchImportFullImageData',
+    ]);
+    expect((calls[2].arguments as Map)['sourceUri'], items.single.pathOrUri);
+    expect((calls[2].arguments as Map)['albumName'], 'RePhoto');
   });
 }

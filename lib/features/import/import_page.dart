@@ -286,7 +286,7 @@ class _ImportPageState extends State<ImportPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('从储存卡删除？'),
-        content: Text('这样操作会从储存卡上永久删除选中的 $count 个项目。'),
+        content: Text('将从储存卡上永久删除 $count 张照片。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

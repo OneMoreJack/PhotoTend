@@ -21,12 +21,28 @@ class ExternalImportItem {
   final bool imported;
 }
 
+class ExternalImportRoot {
+  const ExternalImportRoot({
+    required this.id,
+    required this.label,
+    this.description,
+    this.removable = true,
+  });
+
+  final String id;
+  final String label;
+  final String? description;
+  final bool removable;
+}
+
 abstract class ExternalImportRepository {
   Future<String?> getSavedImportRoot();
-  Future<String?> requestImportRoot();
+  Future<List<ExternalImportRoot>> listImportRoots();
+  Future<String?> requestImportRoot({String? rootId});
   Future<List<ExternalImportItem>> scanImportRoot();
   Future<Uint8List?> fetchPreviewImageData(String pathOrUri);
   Future<Uint8List?> fetchFullImageData(String pathOrUri);
+  Future<void> deleteExternalMedia(ExternalImportItem item);
   Future<String> importExternalMedia(
     ExternalImportItem item, {
     required String albumName,
@@ -43,8 +59,20 @@ class MethodChannelExternalImportRepository
   }
 
   @override
-  Future<String?> requestImportRoot() {
-    return channel.invokeMethod<String>('requestImportRoot');
+  Future<List<ExternalImportRoot>> listImportRoots() async {
+    final result = await channel.invokeMethod<List<dynamic>>('listImportRoots');
+    return (result ?? const <dynamic>[])
+        .whereType<Map<dynamic, dynamic>>()
+        .map(_rootFromRaw)
+        .where((root) => root.id.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<String?> requestImportRoot({String? rootId}) {
+    return channel.invokeMethod<String>('requestImportRoot', <String, dynamic>{
+      if (rootId != null && rootId.isNotEmpty) 'rootId': rootId,
+    });
   }
 
   @override
@@ -74,6 +102,13 @@ class MethodChannelExternalImportRepository
   }
 
   @override
+  Future<void> deleteExternalMedia(ExternalImportItem item) {
+    return channel.invokeMethod<void>('deleteExternalMedia', <String, dynamic>{
+      'sourceUri': item.pathOrUri,
+    });
+  }
+
+  @override
   Future<String> importExternalMedia(
     ExternalImportItem item, {
     required String albumName,
@@ -86,6 +121,15 @@ class MethodChannelExternalImportRepository
           'albumName': albumName,
         });
     return result ?? '';
+  }
+
+  ExternalImportRoot _rootFromRaw(Map<dynamic, dynamic> raw) {
+    return ExternalImportRoot(
+      id: (raw['id'] ?? '').toString(),
+      label: (raw['label'] ?? '储存卡').toString(),
+      description: raw['description']?.toString(),
+      removable: raw['removable'] != false,
+    );
   }
 
   ExternalImportItem _itemFromRaw(Map<dynamic, dynamic> raw) {
@@ -123,13 +167,21 @@ class FakeExternalImportRepository implements ExternalImportRepository {
   final List<ExternalImportItem> _items;
   final List<String> importedIds = <String>[];
   final List<String> importedAlbumNames = <String>[];
+  final List<String> deletedIds = <String>[];
+  final Set<String> failingDeleteIds = <String>{};
+  List<ExternalImportRoot> roots = const <ExternalImportRoot>[
+    ExternalImportRoot(id: 'fake-sd-card', label: '测试储存卡'),
+  ];
   String? savedRoot = 'content://tree/fake';
 
   @override
   Future<String?> getSavedImportRoot() async => savedRoot;
 
   @override
-  Future<String?> requestImportRoot() async {
+  Future<List<ExternalImportRoot>> listImportRoots() async => roots;
+
+  @override
+  Future<String?> requestImportRoot({String? rootId}) async {
     savedRoot = 'content://tree/fake';
     return savedRoot;
   }
@@ -145,6 +197,15 @@ class FakeExternalImportRepository implements ExternalImportRepository {
 
   @override
   Future<Uint8List?> fetchFullImageData(String pathOrUri) async => null;
+
+  @override
+  Future<void> deleteExternalMedia(ExternalImportItem item) async {
+    if (failingDeleteIds.contains(item.id)) {
+      throw Exception('delete failed');
+    }
+    deletedIds.add(item.id);
+    _items.removeWhere((candidate) => candidate.id == item.id);
+  }
 
   @override
   Future<String> importExternalMedia(

@@ -109,15 +109,15 @@ class _ImportPageState extends State<ImportPage> {
             if (items.isNotEmpty)
               _ImportBottomBar(
                 selectedCount: _controller.selectedCount,
-                isImporting: _controller.isImporting,
+                isBusy: _controller.isImporting || _controller.isLoading,
                 importCompletedCount: _controller.importCompletedCount,
                 importTotalCount: _controller.importTotalCount,
                 importProgress: _controller.importProgress,
-                onChoose: _controller.chooseStorageCard,
+                onChoose: _showStorageCardPicker,
                 onRefresh: _controller.refresh,
                 onMoveToTrash: _controller.selectedCount == 0
                     ? null
-                    : _controller.deleteSelectedItems,
+                    : _confirmDeleteSelectedItems,
                 onImport: () => unawaited(
                   _controller.importPendingOrSelected(
                     albumName: _selectedAlbumName,
@@ -137,7 +137,7 @@ class _ImportPageState extends State<ImportPage> {
     if (items.isEmpty) {
       return _ImportEmptyState(
         message: _controller.statusMessage ?? '请连接外接储存卡。',
-        onChoose: _controller.chooseStorageCard,
+        onChoose: _showStorageCardPicker,
         onRefresh: _controller.refresh,
       );
     }
@@ -203,6 +203,91 @@ class _ImportPageState extends State<ImportPage> {
         ],
       ],
     );
+  }
+
+  Future<void> _showStorageCardPicker() async {
+    final roots = await _controller.listStorageCards();
+    if (!mounted) return;
+    if (roots.isEmpty) {
+      await _controller.chooseStorageCard();
+      return;
+    }
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: HuashuColors.surfaceAlt,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 8, 20, 18),
+                child: Center(
+                  child: Text(
+                    '选择储存卡',
+                    style: TextStyle(
+                      color: _importInk,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              for (final root in roots)
+                _AlbumPickerTile(
+                  icon: Icons.sd_card_rounded,
+                  title: root.label,
+                  subtitle: root.description ?? '检测到的外接储存卡',
+                  selected: false,
+                  onTap: () => Navigator.of(context).pop(root.id),
+                ),
+              const SizedBox(height: 8),
+              _AlbumPickerTile(
+                icon: Icons.folder_open_rounded,
+                title: '手动选择文件夹',
+                subtitle: '检测不到储存卡时使用',
+                selected: false,
+                onTap: () => Navigator.of(context).pop('__manual__'),
+              ),
+              const SizedBox(height: 18),
+            ],
+          ),
+        );
+      },
+    );
+    if (!mounted || selected == null) return;
+    await _controller.chooseStorageCard(
+      rootId: selected == '__manual__' ? null : selected,
+    );
+  }
+
+  Future<void> _confirmDeleteSelectedItems() async {
+    final count = _controller.selectedCount;
+    if (count == 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('从储存卡删除？'),
+        content: Text('将永久删除选中的 $count 个项目，此操作不会放入回收站。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: HuashuColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _controller.deleteSelectedItems();
   }
 
   Future<void> _showAlbumPicker() async {
@@ -1080,7 +1165,7 @@ class _AlbumPickerTile extends StatelessWidget {
 class _ImportBottomBar extends StatelessWidget {
   const _ImportBottomBar({
     required this.selectedCount,
-    required this.isImporting,
+    required this.isBusy,
     required this.importCompletedCount,
     required this.importTotalCount,
     required this.importProgress,
@@ -1091,7 +1176,7 @@ class _ImportBottomBar extends StatelessWidget {
   });
 
   final int selectedCount;
-  final bool isImporting;
+  final bool isBusy;
   final int importCompletedCount;
   final int importTotalCount;
   final double importProgress;
@@ -1118,7 +1203,7 @@ class _ImportBottomBar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isImporting || importTotalCount > 0) ...[
+            if (isBusy || importTotalCount > 0) ...[
               Row(
                 children: [
                   Expanded(
@@ -1145,7 +1230,7 @@ class _ImportBottomBar extends StatelessWidget {
               children: [
                 IconButton(
                   tooltip: '选择储存卡',
-                  onPressed: isImporting ? null : onChoose,
+                  onPressed: isBusy ? null : onChoose,
                   color: HuashuColors.inkSoft,
                   iconSize: 32,
                   icon: const Icon(Icons.folder_open_rounded),
@@ -1153,7 +1238,7 @@ class _ImportBottomBar extends StatelessWidget {
                 const SizedBox(width: 16),
                 IconButton(
                   tooltip: '刷新',
-                  onPressed: isImporting ? null : onRefresh,
+                  onPressed: isBusy ? null : onRefresh,
                   color: HuashuColors.inkSoft,
                   iconSize: 32,
                   icon: const Icon(Icons.refresh_rounded),
@@ -1161,7 +1246,7 @@ class _ImportBottomBar extends StatelessWidget {
                 const Spacer(),
                 IconButton(
                   tooltip: '删除选中',
-                  onPressed: isImporting ? null : onMoveToTrash,
+                  onPressed: isBusy ? null : onMoveToTrash,
                   color: _importBlue,
                   disabledColor: HuashuColors.line,
                   iconSize: 32,
@@ -1169,7 +1254,7 @@ class _ImportBottomBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 FilledButton.icon(
-                  onPressed: isImporting ? null : onImport,
+                  onPressed: isBusy ? null : onImport,
                   style: FilledButton.styleFrom(
                     backgroundColor: _importBlue,
                     disabledBackgroundColor: HuashuColors.line,

@@ -149,7 +149,38 @@ void main() {
     expect(controller.arePendingSelected(['a', 'b']), isFalse);
   });
 
-  test('controller deletes selected import items immediately', () async {
+  test(
+    'controller deletes selected import items from external storage',
+    () async {
+      final repo = FakeExternalImportRepository([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+        ExternalImportItem(
+          id: 'b',
+          type: MediaType.photo,
+          displayName: 'b.jpg',
+          pathOrUri: 'content://doc/b',
+        ),
+      ]);
+      final controller = ImportController(repository: repo);
+
+      await controller.refresh();
+      controller.toggleSelection('a');
+      await controller.deleteSelectedItems();
+
+      expect(controller.items.map((item) => item.id), ['b']);
+      expect(controller.trashedItems, isEmpty);
+      expect(controller.selectedIds, isEmpty);
+      expect(repo.deletedIds, ['a']);
+      expect(controller.completionMessage, '已从储存卡删除 1 个项目');
+    },
+  );
+
+  test('controller keeps selected items when external delete fails', () async {
     final repo = FakeExternalImportRepository([
       ExternalImportItem(
         id: 'a',
@@ -157,22 +188,18 @@ void main() {
         displayName: 'a.jpg',
         pathOrUri: 'content://doc/a',
       ),
-      ExternalImportItem(
-        id: 'b',
-        type: MediaType.photo,
-        displayName: 'b.jpg',
-        pathOrUri: 'content://doc/b',
-      ),
     ]);
+    repo.failingDeleteIds.add('a');
     final controller = ImportController(repository: repo);
 
     await controller.refresh();
     controller.toggleSelection('a');
-    controller.deleteSelectedItems();
+    await controller.deleteSelectedItems();
 
-    expect(controller.items.map((item) => item.id), ['b']);
-    expect(controller.trashedItems, isEmpty);
-    expect(controller.selectedIds, isEmpty);
+    expect(controller.items.map((item) => item.id), ['a']);
+    expect(controller.selectedIds, {'a'});
+    expect(repo.deletedIds, isEmpty);
+    expect(controller.statusMessage, '删除失败，请确认储存卡目录允许写入后重试。');
   });
 
   test('controller imports selected items into requested album', () async {

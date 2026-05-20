@@ -82,14 +82,22 @@ class ImportController extends ChangeNotifier {
     }
   }
 
-  Future<void> chooseStorageCard() async {
+  Future<List<ExternalImportRoot>> listStorageCards() async {
+    try {
+      return await _repository.listImportRoots();
+    } catch (_) {
+      return const <ExternalImportRoot>[];
+    }
+  }
+
+  Future<void> chooseStorageCard({String? rootId}) async {
     isLoading = true;
     statusMessage = null;
     completionMessage = null;
     _resetImportProgress();
     notifyListeners();
     try {
-      final root = await _repository.requestImportRoot();
+      final root = await _repository.requestImportRoot(rootId: rootId);
       if (root == null || root.isEmpty) {
         needsStorageCard = true;
         statusMessage = '请连接外接储存卡，或选择储存卡目录。';
@@ -168,13 +176,37 @@ class ImportController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void deleteSelectedItems() {
+  Future<void> deleteSelectedItems() async {
     if (isImporting || _selectedIds.isEmpty) return;
-    _items.removeWhere((item) => _selectedIds.contains(item.id));
-    _trashedItems.removeWhere((item) => _selectedIds.contains(item.id));
-    _statuses.removeWhere((id, _) => _selectedIds.contains(id));
-    _selectedIds.clear();
+    isLoading = true;
     completionMessage = null;
+    statusMessage = null;
+    notifyListeners();
+    final ids = Set<String>.from(_selectedIds);
+    final byId = {for (final item in _visibleItems) item.id: item};
+    final deletedIds = <String>{};
+    for (final id in ids) {
+      final item = byId[id];
+      if (item == null) continue;
+      try {
+        await _repository.deleteExternalMedia(item);
+        deletedIds.add(id);
+      } catch (_) {
+        // Keep the item visible so the user can retry.
+      }
+    }
+    _items.removeWhere((item) => deletedIds.contains(item.id));
+    _trashedItems.removeWhere((item) => deletedIds.contains(item.id));
+    _statuses.removeWhere((id, _) => deletedIds.contains(id));
+    _selectedIds.removeAll(deletedIds);
+    if (deletedIds.length == ids.length) {
+      completionMessage = '已从储存卡删除 ${deletedIds.length} 个项目';
+    } else {
+      statusMessage = deletedIds.isEmpty
+          ? '删除失败，请确认储存卡目录允许写入后重试。'
+          : '已删除 ${deletedIds.length} 个项目，${ids.length - deletedIds.length} 个删除失败。';
+    }
+    isLoading = false;
     notifyListeners();
   }
 

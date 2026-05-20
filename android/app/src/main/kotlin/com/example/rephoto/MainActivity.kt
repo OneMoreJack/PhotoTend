@@ -183,7 +183,11 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "getSavedImportRoot" -> result.success(readSavedImportRoot())
-                    "requestImportRoot" -> requestImportRoot(result)
+                    "listImportRoots" -> result.success(listImportRoots())
+                    "requestImportRoot" -> {
+                        val rootId = call.argument<String>("rootId")
+                        requestImportRoot(result, rootId)
+                    }
                     "scanImportRoot" -> runAsync(result) { scanImportRoot().map { it.toMap() } }
                     "fetchImportPreviewImageData" -> {
                         val pathOrUri = call.argument<String>("pathOrUri")
@@ -211,6 +215,17 @@ class MainActivity : FlutterActivity() {
                         } else {
                             runAsync(result) {
                                 importExternalMedia(sourceUri, displayName, type, albumName)
+                            }
+                        }
+                    }
+                    "deleteExternalMedia" -> {
+                        val sourceUri = call.argument<String>("sourceUri")
+                        if (sourceUri.isNullOrBlank()) {
+                            result.error("INVALID_ARGUMENT", "sourceUri is empty", null)
+                        } else {
+                            runAsync(result) {
+                                deleteExternalMedia(sourceUri)
+                                null
                             }
                         }
                     }
@@ -863,13 +878,41 @@ class MainActivity : FlutterActivity() {
         return if (hasPermission) value else null
     }
 
-    private fun requestImportRoot(result: MethodChannel.Result) {
+    private fun listImportRoots(): List<Map<String, Any?>> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return emptyList()
+        return try {
+            val storageManager = getSystemService(StorageManager::class.java)
+            storageManager.storageVolumes
+                .filter { volume ->
+                    volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED
+                }
+                .map { volume ->
+                    val description = volume.getDescription(this)
+                    val uuid = volume.uuid
+                    mapOf(
+                        "id" to (uuid ?: description),
+                        "label" to (description.takeUnless { it.isNullOrBlank() } ?: "储存卡"),
+                        "description" to if (uuid.isNullOrBlank()) {
+                            "已挂载的外接储存卡"
+                        } else {
+                            "储存卡 $uuid"
+                        },
+                        "removable" to true,
+                    )
+                }
+        } catch (error: Exception) {
+            Log.w(logTag, "Unable to list removable storage roots", error)
+            emptyList()
+        }
+    }
+
+    private fun requestImportRoot(result: MethodChannel.Result, rootId: String? = null) {
         if (pendingImportRootResult != null) {
             result.error("BUSY", "Import root picker is already open", null)
             return
         }
         pendingImportRootResult = result
-        val intent = buildImportRootPickerIntent().apply {
+        val intent = buildImportRootPickerIntent(rootId).apply {
             addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
@@ -882,13 +925,19 @@ class MainActivity : FlutterActivity() {
         startActivityForResult(intent, requestCodeImportRoot)
     }
 
-    private fun buildImportRootPickerIntent(): Intent {
+    private fun buildImportRootPickerIntent(rootId: String? = null): Intent {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val storageManager = getSystemService(StorageManager::class.java)
-                val removable = storageManager.storageVolumes.firstOrNull { volume ->
-                    volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED
-                }
+                val removable = storageManager.storageVolumes
+                    .filter { volume ->
+                        volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED
+                    }
+                    .firstOrNull { volume ->
+                        rootId.isNullOrBlank() ||
+                            volume.uuid == rootId ||
+                            volume.getDescription(this) == rootId
+                    }
                 val intent = removable?.createOpenDocumentTreeIntent()
                 if (intent != null) {
                     return intent
@@ -1003,6 +1052,19 @@ class MainActivity : FlutterActivity() {
         } catch (error: Exception) {
             Log.d(logTag, "fetchExternalFullImageData failed: ${error.message}")
             null
+        }
+    }
+
+    private fun deleteExternalMedia(sourceUriValue: String) {
+        val sourceUri = Uri.parse(sourceUriValue)
+        val deleted = try {
+            DocumentsContract.deleteDocument(contentResolver, sourceUri)
+        } catch (error: Exception) {
+            Log.w(logTag, "deleteExternalMedia failed", error)
+            false
+        }
+        if (!deleted) {
+            throw IllegalStateException("Unable to delete external media")
         }
     }
 

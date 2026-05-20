@@ -161,6 +161,7 @@ void main() {
 
     expect(find.byKey(const Key('import-page')), findsOneWidget);
     expect(find.text('导入'), findsWidgets);
+    expect(find.byTooltip('导入回收站'), findsNothing);
   });
 
   testWidgets('home header exposes settings entry', (tester) async {

@@ -168,15 +168,11 @@ class ImportController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void moveSelectedToTrash() {
+  void deleteSelectedItems() {
     if (isImporting || _selectedIds.isEmpty) return;
-    final selectedItems = _visibleItems
-        .where((item) => _selectedIds.contains(item.id))
-        .toList(growable: false);
-    final trashedIds = _trashedItems.map((item) => item.id).toSet();
-    _trashedItems.addAll(
-      selectedItems.where((item) => !trashedIds.contains(item.id)),
-    );
+    _items.removeWhere((item) => _selectedIds.contains(item.id));
+    _trashedItems.removeWhere((item) => _selectedIds.contains(item.id));
+    _statuses.removeWhere((id, _) => _selectedIds.contains(id));
     _selectedIds.clear();
     completionMessage = null;
     notifyListeners();

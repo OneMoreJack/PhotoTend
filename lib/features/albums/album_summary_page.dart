@@ -174,14 +174,9 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
   }
 
   Future<void> _openImport() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => ImportPage(
-          homeController: widget.controller,
-          deleteService: widget.deleteService,
-        ),
-      ),
-    );
+    await Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => const ImportPage()));
   }
 
   Map<String, MediaItem> _mediaByIdForEntries(List<AlbumSummaryEntry> entries) {

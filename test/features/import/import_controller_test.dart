@@ -149,39 +149,31 @@ void main() {
     expect(controller.arePendingSelected(['a', 'b']), isFalse);
   });
 
-  test(
-    'controller moves selected import items to trash and restores them',
-    () async {
-      final repo = FakeExternalImportRepository([
-        ExternalImportItem(
-          id: 'a',
-          type: MediaType.photo,
-          displayName: 'a.jpg',
-          pathOrUri: 'content://doc/a',
-        ),
-        ExternalImportItem(
-          id: 'b',
-          type: MediaType.photo,
-          displayName: 'b.jpg',
-          pathOrUri: 'content://doc/b',
-        ),
-      ]);
-      final controller = ImportController(repository: repo);
+  test('controller deletes selected import items immediately', () async {
+    final repo = FakeExternalImportRepository([
+      ExternalImportItem(
+        id: 'a',
+        type: MediaType.photo,
+        displayName: 'a.jpg',
+        pathOrUri: 'content://doc/a',
+      ),
+      ExternalImportItem(
+        id: 'b',
+        type: MediaType.photo,
+        displayName: 'b.jpg',
+        pathOrUri: 'content://doc/b',
+      ),
+    ]);
+    final controller = ImportController(repository: repo);
 
-      await controller.refresh();
-      controller.toggleSelection('a');
-      controller.moveSelectedToTrash();
+    await controller.refresh();
+    controller.toggleSelection('a');
+    controller.deleteSelectedItems();
 
-      expect(controller.items.map((item) => item.id), ['b']);
-      expect(controller.trashedItems.map((item) => item.id), ['a']);
-      expect(controller.selectedIds, isEmpty);
-
-      controller.restoreFromTrash('a');
-
-      expect(controller.items.map((item) => item.id), ['a', 'b']);
-      expect(controller.trashedItems, isEmpty);
-    },
-  );
+    expect(controller.items.map((item) => item.id), ['b']);
+    expect(controller.trashedItems, isEmpty);
+    expect(controller.selectedIds, isEmpty);
+  });
 
   test('controller imports selected items into requested album', () async {
     final repo = FakeExternalImportRepository([

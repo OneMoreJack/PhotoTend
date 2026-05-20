@@ -6,10 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:rephoto/data/mobile/external_import_repository.dart';
 import 'package:rephoto/data/mobile/mobile_media_repository.dart';
 import 'package:rephoto/domain/models/media_item.dart';
-import 'package:rephoto/domain/services/permanent_delete_service.dart';
-import 'package:rephoto/features/home/home_controller.dart';
 import 'package:rephoto/features/import/import_controller.dart';
-import 'package:rephoto/features/trash/trash_page.dart';
 import 'package:rephoto/theme/huashu_theme.dart';
 
 const _importBlue = HuashuColors.accent;
@@ -31,18 +28,10 @@ String _formatBytes(int bytes) {
 }
 
 class ImportPage extends StatefulWidget {
-  const ImportPage({
-    super.key,
-    ImportController? controller,
-    HomeController? homeController,
-    PermanentDeleteService? deleteService,
-  }) : _controller = controller,
-       _homeController = homeController,
-       _deleteService = deleteService;
+  const ImportPage({super.key, ImportController? controller})
+    : _controller = controller;
 
   final ImportController? _controller;
-  final HomeController? _homeController;
-  final PermanentDeleteService? _deleteService;
 
   @override
   State<ImportPage> createState() => _ImportPageState();
@@ -112,13 +101,9 @@ class _ImportPageState extends State<ImportPage> {
               selectedCount: _controller.selectedCount,
               selectedSizeBytes: _controller.selectedSizeBytes,
               albumName: _selectedAlbumName,
-              trashCount:
-                  _controller.trashCount +
-                  (widget._homeController?.trashCount ?? 0),
               isImporting: _controller.isImporting,
               onBack: () => Navigator.of(context).maybePop(),
               onAlbumTap: _showAlbumPicker,
-              onTrashTap: _openAppTrash,
             ),
             Expanded(child: _buildBody(items)),
             if (items.isNotEmpty)
@@ -132,7 +117,7 @@ class _ImportPageState extends State<ImportPage> {
                 onRefresh: _controller.refresh,
                 onMoveToTrash: _controller.selectedCount == 0
                     ? null
-                    : _controller.moveSelectedToTrash,
+                    : _controller.deleteSelectedItems,
                 onImport: () => unawaited(
                   _controller.importPendingOrSelected(
                     albumName: _selectedAlbumName,
@@ -355,64 +340,6 @@ class _ImportPageState extends State<ImportPage> {
     ).whenComplete(controller.dispose);
   }
 
-  Future<void> _openAppTrash() async {
-    if (_controller.trashCount > 0) {
-      await _openImportTrash();
-      return;
-    }
-    final homeController = widget._homeController;
-    if (homeController == null) {
-      return;
-    }
-    final result = await Navigator.of(context).push<TrashPageResult>(
-      MaterialPageRoute(
-        builder: (_) => TrashPage(
-          initialIds: homeController.orderedTrashIds,
-          initialMediaItems: homeController.mediaItemsByIds(
-            homeController.trashIds,
-          ),
-          deleteService: widget._deleteService,
-        ),
-      ),
-    );
-    if (!mounted || result == null) return;
-    homeController.recordPermanentDeletionStats(result.permanentlyDeletedIds);
-    homeController.updateTrash(result.trashIds);
-    homeController.removeMediaItems(result.permanentlyDeletedIds);
-    setState(() {});
-  }
-
-  Future<void> _openImportTrash() async {
-    final initialIds = _controller.trashedItems
-        .map((item) => item.id)
-        .toList(growable: false);
-    final result = await Navigator.of(context).push<TrashPageResult>(
-      MaterialPageRoute(
-        builder: (_) => TrashPage(
-          initialIds: initialIds,
-          initialMediaItems: [
-            for (final item in _controller.trashedItems)
-              MediaItem(
-                id: item.id,
-                type: item.type,
-                createdAt: item.createdAt,
-                pathOrUri: item.pathOrUri,
-                sizeBytes: item.sizeBytes,
-              ),
-          ],
-        ),
-      ),
-    );
-    if (!mounted || result == null) return;
-    final restoredIds = initialIds.toSet().difference(result.trashIds);
-    final deletedIds = result.permanentlyDeletedIds;
-    for (final id in restoredIds.difference(deletedIds)) {
-      _controller.restoreFromTrash(id);
-    }
-    _controller.removeFromTrash(deletedIds);
-    setState(() {});
-  }
-
   List<_ImportDayGroup> _groupByDay(List<ExternalImportItem> items) {
     final buckets = <String, List<ExternalImportItem>>{};
     for (final item in items) {
@@ -519,11 +446,9 @@ class _ImportHeader extends StatelessWidget {
     required this.selectedCount,
     required this.selectedSizeBytes,
     required this.albumName,
-    required this.trashCount,
     required this.isImporting,
     required this.onBack,
     required this.onAlbumTap,
-    required this.onTrashTap,
   });
 
   final int itemCount;
@@ -531,11 +456,9 @@ class _ImportHeader extends StatelessWidget {
   final int selectedCount;
   final int selectedSizeBytes;
   final String albumName;
-  final int trashCount;
   final bool isImporting;
   final VoidCallback onBack;
   final VoidCallback onAlbumTap;
-  final VoidCallback onTrashTap;
 
   @override
   Widget build(BuildContext context) {
@@ -591,43 +514,7 @@ class _ImportHeader extends StatelessWidget {
                     ),
                   ),
                 ),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      tooltip: '导入回收站',
-                      onPressed: onTrashTap,
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      iconSize: 32,
-                      color: _importBlue,
-                    ),
-                    if (trashCount > 0)
-                      Positioned(
-                        right: 3,
-                        top: 3,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 1,
-                          ),
-                          decoration: const BoxDecoration(
-                            color: HuashuColors.danger,
-                            borderRadius: BorderRadius.all(
-                              Radius.circular(999),
-                            ),
-                          ),
-                          child: Text(
-                            '$trashCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                const SizedBox(width: 56),
               ],
             ),
           ),
@@ -1273,12 +1160,12 @@ class _ImportBottomBar extends StatelessWidget {
                 ),
                 const Spacer(),
                 IconButton(
-                  tooltip: '放进回收站',
+                  tooltip: '删除选中',
                   onPressed: isImporting ? null : onMoveToTrash,
                   color: _importBlue,
                   disabledColor: HuashuColors.line,
                   iconSize: 32,
-                  icon: const Icon(Icons.delete_outline_rounded),
+                  icon: const Icon(Icons.delete_forever_outlined),
                 ),
                 const SizedBox(width: 10),
                 FilledButton.icon(

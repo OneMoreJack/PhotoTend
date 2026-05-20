@@ -256,6 +256,13 @@ class MainActivity : FlutterActivity() {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                     )
+                Log.i(
+                    logTag,
+                    "Import root granted uri=$uri flags=$flags " +
+                        "tree=${DocumentsContract.isTreeUri(uri)} " +
+                        "document=${DocumentsContract.isDocumentUri(this, uri)} " +
+                        "root=${DocumentsContract.isRootUri(this, uri)}"
+                )
                 try {
                     contentResolver.takePersistableUriPermission(uri, flags)
                 } catch (error: Exception) {
@@ -977,11 +984,46 @@ class MainActivity : FlutterActivity() {
 
     private fun scanImportRoot(): List<NativeExternalImportItem> {
         val root = readSavedImportRoot() ?: return emptyList()
-        val treeUri = Uri.parse(root)
-        val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
         val items = mutableListOf<NativeExternalImportItem>()
-        scanDocumentTree(treeUri, rootDocumentId, items)
+        val rootUri = Uri.parse(root)
+        try {
+            when {
+                DocumentsContract.isTreeUri(rootUri) -> {
+                    val rootDocumentId = DocumentsContract.getTreeDocumentId(rootUri)
+                    scanDocumentTree(rootUri, rootDocumentId, items)
+                }
+                DocumentsContract.isDocumentUri(this, rootUri) -> {
+                    val rootDocumentId = DocumentsContract.getDocumentId(rootUri)
+                    scanDocumentSubtree(rootUri.authority ?: return emptyList(), rootDocumentId, items)
+                }
+                DocumentsContract.isRootUri(this, rootUri) -> {
+                    val rootDocumentId = "${DocumentsContract.getRootId(rootUri)}:"
+                    scanDocumentSubtree(rootUri.authority ?: return emptyList(), rootDocumentId, items)
+                }
+                else -> {
+                    Log.w(logTag, "Unsupported import root uri: $rootUri")
+                    return emptyList()
+                }
+            }
+        } catch (error: Exception) {
+            Log.w(logTag, "scanImportRoot failed for uri=$rootUri", error)
+            return emptyList()
+        }
+        Log.i(logTag, "scanImportRoot found ${items.size} importable items")
         return items.sortedByDescending { it.createdAtMillis }
+    }
+
+    private fun scanDocumentSubtree(
+        authority: String,
+        documentId: String,
+        items: MutableList<NativeExternalImportItem>,
+    ) {
+        scanDocumentChildren(
+            childrenUri = DocumentsContract.buildChildDocumentsUri(authority, documentId),
+            documentUriFor = { childId -> DocumentsContract.buildDocumentUri(authority, childId) },
+            recurseInto = { childId -> scanDocumentSubtree(authority, childId, items) },
+            items = items,
+        )
     }
 
     private fun scanDocumentTree(
@@ -989,7 +1031,20 @@ class MainActivity : FlutterActivity() {
         documentId: String,
         items: MutableList<NativeExternalImportItem>,
     ) {
-        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId)
+        scanDocumentChildren(
+            childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId),
+            documentUriFor = { childId -> DocumentsContract.buildDocumentUriUsingTree(treeUri, childId) },
+            recurseInto = { childId -> scanDocumentTree(treeUri, childId, items) },
+            items = items,
+        )
+    }
+
+    private fun scanDocumentChildren(
+        childrenUri: Uri,
+        documentUriFor: (String) -> Uri,
+        recurseInto: (String) -> Unit,
+        items: MutableList<NativeExternalImportItem>,
+    ) {
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
             DocumentsContract.Document.COLUMN_DISPLAY_NAME,
@@ -1007,12 +1062,12 @@ class MainActivity : FlutterActivity() {
                 val childId = readString(cursor, idColumn) ?: continue
                 val mimeType = readString(cursor, mimeColumn) ?: ""
                 if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    scanDocumentTree(treeUri, childId, items)
+                    recurseInto(childId)
                     continue
                 }
                 val name = readString(cursor, nameColumn) ?: childId.substringAfterLast('/')
                 val mediaType = externalMediaType(name, mimeType) ?: continue
-                val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId)
+                val documentUri = documentUriFor(childId)
                 items.add(
                     NativeExternalImportItem(
                         id = documentUri.toString(),

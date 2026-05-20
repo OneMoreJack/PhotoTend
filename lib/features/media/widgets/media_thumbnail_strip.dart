@@ -24,7 +24,7 @@ class MediaThumbnailStrip extends StatefulWidget {
 }
 
 class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
-  static const double _itemExtent = 78;
+  static const double _itemExtent = 66;
   late final ScrollController _scrollController;
 
   @override
@@ -61,11 +61,11 @@ class _MediaThumbnailStripState extends State<MediaThumbnailStrip> {
     }
     return SizedBox(
       key: const Key('media-thumbnail-strip'),
-      height: 104,
+      height: 82,
       child: ListView.builder(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(20, 13, 44, 13),
+        padding: const EdgeInsets.fromLTRB(12, 8, 36, 8),
         itemExtent: _itemExtent,
         itemCount: widget.items.length,
         itemBuilder: (context, index) {

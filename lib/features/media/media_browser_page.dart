@@ -309,7 +309,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                             ),
                           Expanded(
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                              padding: const EdgeInsets.only(bottom: 12),
                               child: _buildMediaAreaWithGestures(),
                             ),
                           ),
@@ -495,29 +495,38 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     required Widget child,
     double deleteProgress = 0,
   }) {
-    return Align(
-      alignment: Alignment.center,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width - 32,
-          maxHeight: MediaQuery.sizeOf(context).height * 0.62,
-        ),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: HuashuColors.surface,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: deleteProgress > 0
-                  ? HuashuColors.danger.withValues(alpha: 0.15 * deleteProgress)
-                  : HuashuColors.ink.withValues(alpha: 0.10),
-              blurRadius: 24 + 12 * deleteProgress,
-              offset: const Offset(0, 12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : MediaQuery.sizeOf(context).height;
+        return Align(
+          alignment: Alignment.center,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width,
+              maxHeight: maxHeight,
             ),
-          ],
-        ),
-        child: child,
-      ),
+            color: Colors.black,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                child,
+                if (deleteProgress > 0)
+                  IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: HuashuColors.danger.withValues(
+                          alpha: 0.08 * deleteProgress,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -583,17 +592,17 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
 
   Widget _buildBottomActionBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(42, 10, 42, 28),
+      padding: const EdgeInsets.fromLTRB(58, 6, 58, 14),
       color: Colors.transparent,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(36),
+        borderRadius: BorderRadius.circular(30),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
-            height: 74,
+            height: 60,
             decoration: BoxDecoration(
               color: HuashuColors.surface.withValues(alpha: 0.82),
-              borderRadius: BorderRadius.circular(36),
+              borderRadius: BorderRadius.circular(30),
               border: Border.all(color: HuashuColors.line),
               boxShadow: [
                 BoxShadow(
@@ -1838,7 +1847,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         builder: (context, constraints) {
           final maxWidth = constraints.maxWidth.isFinite
               ? constraints.maxWidth
-              : MediaQuery.sizeOf(context).width - 32;
+              : MediaQuery.sizeOf(context).width;
           final maxHeight = constraints.maxHeight.isFinite
               ? constraints.maxHeight
               : MediaQuery.sizeOf(context).height * 0.62;

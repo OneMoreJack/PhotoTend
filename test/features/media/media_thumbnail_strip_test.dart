@@ -108,8 +108,8 @@ void main() {
           matching: find.byType(ListView),
         ),
       );
-      expect(strip.itemExtent, 78);
-      expect(strip.padding, const EdgeInsets.fromLTRB(20, 13, 44, 13));
+      expect(strip.itemExtent, 66);
+      expect(strip.padding, const EdgeInsets.fromLTRB(12, 8, 36, 8));
 
       final thumbnail = find.byKey(const Key('media-thumbnail-video-local'));
       expect(thumbnail, findsOneWidget);

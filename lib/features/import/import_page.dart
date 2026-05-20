@@ -51,6 +51,7 @@ class _ImportPageState extends State<ImportPage> {
   final Set<String> _collapsedGroupKeys = <String>{};
   List<MediaAlbum> _systemAlbums = const <MediaAlbum>[];
   bool _albumsLoading = false;
+  bool _storagePickerPrompted = false;
   String _selectedAlbumName = '你的图库';
 
   @override
@@ -60,7 +61,7 @@ class _ImportPageState extends State<ImportPage> {
     _controller =
         widget._controller ?? ImportController(repository: _repository);
     _controller.addListener(_onControllerChanged);
-    unawaited(_controller.refresh());
+    unawaited(_refreshAndPromptForStorageCard());
   }
 
   @override
@@ -70,6 +71,20 @@ class _ImportPageState extends State<ImportPage> {
       _controller.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _refreshAndPromptForStorageCard() async {
+    await _controller.refresh();
+    if (!mounted ||
+        _storagePickerPrompted ||
+        !_controller.needsStorageCard ||
+        _controller.items.isNotEmpty) {
+      return;
+    }
+    final roots = await _controller.listStorageCards();
+    if (!mounted || roots.isEmpty) return;
+    _storagePickerPrompted = true;
+    await _showStorageCardPicker(initialRoots: roots);
   }
 
   void _onControllerChanged() {
@@ -205,8 +220,10 @@ class _ImportPageState extends State<ImportPage> {
     );
   }
 
-  Future<void> _showStorageCardPicker() async {
-    final roots = await _controller.listStorageCards();
+  Future<void> _showStorageCardPicker({
+    List<ExternalImportRoot>? initialRoots,
+  }) async {
+    final roots = initialRoots ?? await _controller.listStorageCards();
     if (!mounted) return;
     if (roots.isEmpty) {
       await _controller.chooseStorageCard();
@@ -225,7 +242,7 @@ class _ImportPageState extends State<ImportPage> {
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 18),
                 child: Center(
                   child: Text(
-                    '选择储存卡',
+                    '选择要导入的储存卡',
                     style: TextStyle(
                       color: _importInk,
                       fontSize: 22,
@@ -238,14 +255,14 @@ class _ImportPageState extends State<ImportPage> {
                 _AlbumPickerTile(
                   icon: Icons.sd_card_rounded,
                   title: root.label,
-                  subtitle: root.description ?? '检测到的外接储存卡',
+                  subtitle: root.description ?? '点按后授权访问并加载照片',
                   selected: false,
                   onTap: () => Navigator.of(context).pop(root.id),
                 ),
               const SizedBox(height: 8),
               _AlbumPickerTile(
                 icon: Icons.folder_open_rounded,
-                title: '手动选择文件夹',
+                title: '手动授权位置',
                 subtitle: '检测不到储存卡时使用',
                 selected: false,
                 onTap: () => Navigator.of(context).pop('__manual__'),
@@ -269,7 +286,7 @@ class _ImportPageState extends State<ImportPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('从储存卡删除？'),
-        content: Text('将永久删除选中的 $count 个项目，此操作不会放入回收站。'),
+        content: Text('这样操作会从储存卡上永久删除选中的 $count 个项目。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

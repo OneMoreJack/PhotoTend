@@ -926,6 +926,25 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun buildImportRootPickerIntent(rootId: String? = null): Intent {
+        if (!rootId.isNullOrBlank() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                val storageManager = getSystemService(StorageManager::class.java)
+                val selected = storageManager.storageVolumes
+                    .filter { volume ->
+                        volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED
+                    }
+                    .firstOrNull { volume ->
+                        volume.uuid == rootId || volume.getDescription(this) == rootId
+                    }
+                @Suppress("DEPRECATION")
+                val directAccessIntent = selected?.createAccessIntent(null)
+                if (directAccessIntent != null) {
+                    return directAccessIntent
+                }
+            } catch (error: Exception) {
+                Log.w(logTag, "Unable to build direct storage access intent", error)
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val storageManager = getSystemService(StorageManager::class.java)

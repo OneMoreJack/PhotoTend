@@ -872,9 +872,16 @@ class MainActivity : FlutterActivity() {
         val value = externalImportPrefs.getString(importRootUriKey, null)
         if (value.isNullOrBlank()) return null
         val uri = Uri.parse(value)
-        val hasPermission = contentResolver.persistedUriPermissions.any {
+        val hasPersistedPermission = contentResolver.persistedUriPermissions.any {
             it.uri == uri && it.isReadPermission
         }
+        val hasActivePermission = checkUriPermission(
+            uri,
+            android.os.Process.myPid(),
+            android.os.Process.myUid(),
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasPermission = hasPersistedPermission || hasActivePermission
         return if (hasPermission) value else null
     }
 

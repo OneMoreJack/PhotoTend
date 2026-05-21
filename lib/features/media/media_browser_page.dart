@@ -592,17 +592,17 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
 
   Widget _buildBottomActionBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(58, 6, 58, 14),
+      padding: const EdgeInsets.fromLTRB(42, 6, 42, 14),
       color: Colors.transparent,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(26),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Container(
-            height: 60,
+            height: 58,
             decoration: BoxDecoration(
-              color: HuashuColors.surface.withValues(alpha: 0.82),
-              borderRadius: BorderRadius.circular(30),
+              color: HuashuColors.surfaceRaised.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(26),
               border: Border.all(color: HuashuColors.line),
               boxShadow: [
                 BoxShadow(
@@ -620,6 +620,9 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                     icon: _controller.browseMode == BrowseMode.random
                         ? Icons.shuffle_rounded
                         : Icons.format_list_numbered_rounded,
+                    tooltip: _controller.browseMode == BrowseMode.random
+                        ? 'Random order'
+                        : 'Sequential order',
                     active: _controller.browseMode == BrowseMode.sequential,
                     onTap: _toggleBrowseMode,
                   ),
@@ -629,6 +632,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   child: _buildBottomActionIcon(
                     key: const Key('video-only-btn'),
                     icon: Icons.movie_creation_outlined,
+                    tooltip: 'Videos only',
                     active: _controller.videoOnlyEnabled,
                     onTap: _toggleVideoOnlyMode,
                   ),
@@ -638,6 +642,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   child: _buildBottomActionIcon(
                     key: const Key('browser-more-btn'),
                     icon: Icons.share_outlined,
+                    tooltip: 'Share',
                     active: false,
                     onTap: _handleShareButton,
                   ),
@@ -647,6 +652,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   child: _buildBottomActionIcon(
                     key: const Key('browser-info-btn'),
                     icon: Icons.info_outline_rounded,
+                    tooltip: 'Info',
                     active: false,
                     onTap: _showMediaInfoSheet,
                   ),
@@ -894,14 +900,33 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   Widget _buildBottomActionIcon({
     required Key key,
     required IconData icon,
+    required String tooltip,
     required bool active,
     required VoidCallback onTap,
   }) {
     final color = active ? HuashuColors.accent : HuashuColors.inkSoft;
-    return InkWell(
-      key: key,
-      onTap: onTap,
-      child: SizedBox.expand(child: Icon(icon, size: 34, color: color)),
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        key: key,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeOutCubic,
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: active
+                  ? HuashuColors.accentSoft.withValues(alpha: 0.62)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, size: 30, color: color),
+          ),
+        ),
+      ),
     );
   }
 

@@ -1,0 +1,14 @@
+{
+  "scannedAt": "2026-05-21",
+  "framework": "Flutter",
+  "fontStack": "SF Pro Text via ThemeData",
+  "palette": "Huashu warm paper/accent tokens in lib/theme/huashu_theme.dart",
+  "motion": "Flutter implicit animations, no dedicated motion package",
+  "spacing": "Hand-authored Flutter spacing using an 8-ish px scale",
+  "preserve": [
+    "warm paper background",
+    "burnt-orange accent",
+    "Material iconography",
+    "existing route and controller structure"
+  ]
+}

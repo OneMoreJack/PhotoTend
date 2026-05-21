@@ -162,6 +162,12 @@ void main() {
     expect(find.byKey(const Key('import-page')), findsOneWidget);
     expect(find.text('导入'), findsWidgets);
     expect(find.byTooltip('导入回收站'), findsNothing);
+    expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.close_rounded), findsNothing);
+    expect(find.byKey(const Key('import-album-picker-btn')), findsOneWidget);
+    expect(find.text('导入至:'), findsOneWidget);
+    expect(find.text('你的图库'), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
   });
 
   testWidgets('home header exposes settings entry', (tester) async {
@@ -188,6 +194,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Reset Random Pool'), findsOneWidget);
+    expect(find.text('Library rhythm'), findsNothing);
+    expect(find.text('Recovered space'), findsNothing);
   });
 
   testWidgets('monthly completion keeps month title and only replay action', (

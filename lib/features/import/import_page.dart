@@ -583,45 +583,36 @@ class _ImportHeader extends StatelessWidget {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
             child: Row(
               children: [
-                SizedBox(
-                  width: 56,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: IconButton.filledTonal(
-                      tooltip: '返回',
-                      onPressed: onBack,
-                      icon: const Icon(Icons.close_rounded),
-                      iconSize: 28,
-                      color: HuashuColors.muted,
-                      style: IconButton.styleFrom(
-                        backgroundColor: HuashuColors.surfaceAlt,
-                      ),
-                    ),
-                  ),
+                IconButton(
+                  tooltip: '返回',
+                  onPressed: onBack,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  iconSize: 28,
+                  color: HuashuColors.ink,
                 ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     '导入',
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.left,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: _importInk,
-                      fontSize: 25,
+                      fontSize: 26,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,
                     ),
                   ),
                 ),
-                const SizedBox(width: 56),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -636,33 +627,48 @@ class _ImportHeader extends StatelessWidget {
                     ),
                   ),
                 const Spacer(),
-                InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: isImporting ? null : onAlbumTap,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    child: Column(
-                      children: [
-                        const Text(
-                          '导入至:',
-                          style: TextStyle(
-                            color: _importInk,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                Flexible(
+                  child: InkWell(
+                    key: const Key('import-album-picker-btn'),
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: isImporting ? null : onAlbumTap,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            '导入至:',
+                            style: TextStyle(
+                              color: _importInk,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        Text(
-                          albumName,
-                          style: const TextStyle(
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              albumName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _importBlue,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
                             color: _importBlue,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                            size: 20,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1205,13 +1211,13 @@ class _ImportBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: Color(0xFAFFFAFD),
+      decoration: BoxDecoration(
+        color: HuashuColors.surfaceRaised.withValues(alpha: 0.98),
         boxShadow: [
           BoxShadow(
-            color: Color(0x0F000000),
+            color: HuashuColors.ink.withValues(alpha: 0.06),
             blurRadius: 18,
-            offset: Offset(0, -6),
+            offset: const Offset(0, -6),
           ),
         ],
       ),
@@ -1252,7 +1258,7 @@ class _ImportBottomBar extends StatelessWidget {
                   iconSize: 32,
                   icon: const Icon(Icons.folder_open_rounded),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 IconButton(
                   tooltip: '刷新',
                   onPressed: isBusy ? null : onRefresh,
@@ -1269,7 +1275,7 @@ class _ImportBottomBar extends StatelessWidget {
                   iconSize: 32,
                   icon: const Icon(Icons.delete_forever_outlined),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 FilledButton.icon(
                   onPressed: isBusy ? null : onImport,
                   style: FilledButton.styleFrom(
@@ -1279,18 +1285,18 @@ class _ImportBottomBar extends StatelessWidget {
                     disabledForegroundColor: Colors.white.withValues(
                       alpha: 0.72,
                     ),
-                    elevation: 7,
+                    elevation: 2,
                     shadowColor: _importBlue.withValues(alpha: 0.28),
-                    minimumSize: const Size(156, 58),
+                    minimumSize: const Size(150, 56),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                     textStyle: const TextStyle(
-                      fontSize: 17,
+                      fontSize: 16,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  icon: const Icon(Icons.file_download_outlined, size: 30),
+                  icon: const Icon(Icons.file_download_outlined, size: 26),
                   label: Text(selectedCount == 0 ? '导入全部' : '导入选中'),
                 ),
               ],

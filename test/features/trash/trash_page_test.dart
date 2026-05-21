@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/domain/services/permanent_delete_service.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
+import 'package:rephoto/theme/huashu_theme.dart';
 
 void main() {
   testWidgets('restore and delete buttons use active styling when selected', (
@@ -19,11 +20,11 @@ void main() {
 
     expect(
       buttonBackground(find.byKey(const Key('trash-bottom-restore-btn'))),
-      const Color(0xFFF4F5F8),
+      HuashuColors.surfaceAlt.withValues(alpha: 0.58),
     );
     expect(
       buttonBackground(find.byKey(const Key('trash-bottom-delete-btn'))),
-      const Color(0xFFF4F5F8),
+      HuashuColors.surfaceAlt.withValues(alpha: 0.58),
     );
 
     await tester.tap(find.byKey(const Key('trash-grid-item-1')));
@@ -31,7 +32,7 @@ void main() {
 
     expect(
       buttonBackground(find.byKey(const Key('trash-bottom-restore-btn'))),
-      const Color(0xFFE7F0FF),
+      HuashuColors.accentSoft,
     );
     expect(
       buttonBackground(find.byKey(const Key('trash-bottom-delete-btn'))),

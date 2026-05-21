@@ -69,7 +69,7 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(26, 24, 26, 28),
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
                     children: [
                       _AlbumHomeHeader(onSettings: _openSettings),
                       if (widget.statusMessage != null)
@@ -298,12 +298,19 @@ class _AlbumBottomNav extends StatelessWidget {
     return SafeArea(
       top: false,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: Color(0xF7FFFAFD),
-          border: Border(top: BorderSide(color: Color(0x0F000000))),
+        decoration: BoxDecoration(
+          color: HuashuColors.surfaceRaised.withValues(alpha: 0.96),
+          border: const Border(top: BorderSide(color: HuashuColors.line)),
+          boxShadow: [
+            BoxShadow(
+              color: HuashuColors.ink.withValues(alpha: 0.05),
+              blurRadius: 18,
+              offset: const Offset(0, -8),
+            ),
+          ],
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(26, 8, 26, 10),
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -490,19 +497,19 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
         ? widget.entry.coverMediaId
         : previewIds[_coverIndex % previewIds.length];
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: InkWell(
         key: const Key('album-memory-hero-on-this-day'),
         onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         child: Ink(
-          height: 156,
+          height: 164,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
+            color: HuashuColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(14),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(14),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -534,9 +541,9 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
                   ),
                 ),
                 Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: 12,
+                  left: 16,
+                  right: 16,
+                  bottom: 15,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -545,7 +552,7 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
                         'On This Day',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -554,7 +561,7 @@ class _OnThisDayHeroCardState extends State<_OnThisDayHeroCard> {
                         '那年今日',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 22,
+                          fontSize: 24,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0,
                         ),
@@ -631,7 +638,7 @@ class _RecentShortcutSection extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: 26),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -639,7 +646,7 @@ class _RecentShortcutSection extends StatelessWidget {
             if (index > 0) const SizedBox(width: 12),
             Expanded(
               child: SizedBox(
-                height: 116,
+                height: 124,
                 child: _RecentShortcutCard(
                   entry: entries[index],
                   mediaById: mediaById,
@@ -678,14 +685,14 @@ class _RecentShortcutCard extends StatelessWidget {
     return InkWell(
       key: Key('album-recent-card-${entry.id}'),
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(14),
       child: Ink(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          color: HuashuColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(14),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(14),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -709,9 +716,9 @@ class _RecentShortcutCard extends StatelessWidget {
                 ),
               ),
               Positioned(
-                left: 12,
-                right: 12,
-                bottom: 12,
+                left: 14,
+                right: 14,
+                bottom: 14,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -722,7 +729,7 @@ class _RecentShortcutCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.92),
-                        fontSize: 12,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -733,7 +740,7 @@ class _RecentShortcutCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 22,
+                        fontSize: 21,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0,
                       ),
@@ -785,16 +792,16 @@ class _MonthSummaryCard extends StatelessWidget {
       child: InkWell(
         key: Key('album-month-card-${entry.id}'),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         child: Ink(
-          width: 242,
-          height: 150,
+          width: 246,
+          height: 154,
           decoration: BoxDecoration(
             color: HuashuColors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(14),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -1074,10 +1081,25 @@ class _SummaryCover extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Icon(
-          isVideo ? Icons.play_circle_fill_rounded : Icons.photo_outlined,
-          color: isVideo ? Colors.white : HuashuColors.muted,
-          size: dense ? 28 : 42,
+        child: Container(
+          width: dense ? 42 : 64,
+          height: dense ? 42 : 64,
+          decoration: BoxDecoration(
+            color: isVideo
+                ? Colors.white.withValues(alpha: 0.12)
+                : HuashuColors.surfaceRaised.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(dense ? 12 : 18),
+            border: Border.all(
+              color: isVideo
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : HuashuColors.line,
+            ),
+          ),
+          child: Icon(
+            isVideo ? Icons.play_circle_fill_rounded : Icons.photo_outlined,
+            color: isVideo ? Colors.white : HuashuColors.muted,
+            size: dense ? 24 : 34,
+          ),
         ),
       ),
     );
@@ -1126,7 +1148,7 @@ class _YearSummarySection extends StatelessWidget {
             ),
           ),
           SizedBox(
-            height: 150,
+            height: 154,
             child: ListView(
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.none,

@@ -5,6 +5,8 @@ abstract final class HuashuColors {
   static const paperWarm = Color(0xFFFBF7EF);
   static const surface = Color(0xFFFFFCF6);
   static const surfaceAlt = Color(0xFFEDE7DA);
+  static const surfaceRaised = Color(0xFFFFFBF3);
+  static const surfacePressed = Color(0xFFE8DFD1);
   static const ink = Color(0xFF171A1C);
   static const inkSoft = Color(0xFF343331);
   static const muted = Color(0xFF756F66);
@@ -77,6 +79,12 @@ abstract final class HuashuTheme {
           ),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
+      ),
+      cardTheme: CardThemeData(
+        color: HuashuColors.surfaceRaised,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(

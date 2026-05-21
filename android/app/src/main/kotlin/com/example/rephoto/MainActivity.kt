@@ -26,6 +26,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 import java.util.Locale
 
 class MainActivity : FlutterActivity() {
@@ -967,20 +968,13 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun requestImportRoot(result: MethodChannel.Result, rootId: String? = null) {
-        if (!rootId.isNullOrBlank()) {
-            val value = "volume://$rootId"
-            externalImportPrefs.edit().putString(importRootUriKey, value).apply()
-            lastImportDebugInfo = "导入诊断：已选择储存卡，准备通过 MediaStore 扫描\nvolume=$rootId"
-            result.success(value)
-            return
-        }
         if (pendingImportRootResult != null) {
             result.error("BUSY", "Import root picker is already open", null)
             return
         }
         pendingImportRootResult = result
-        pendingImportRootId = null
-        val intent = buildImportRootPickerIntent().apply {
+        pendingImportRootId = rootId
+        val intent = buildImportRootPickerIntent(rootId).apply {
             addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
@@ -988,6 +982,11 @@ class MainActivity : FlutterActivity() {
                     Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
             )
             putExtra("android.provider.extra.SHOW_ADVANCED", true)
+        }
+        lastImportDebugInfo = if (rootId.isNullOrBlank()) {
+            "导入诊断：正在请求手动授权储存位置。"
+        } else {
+            "导入诊断：正在请求储存卡目录授权\nvolume=$rootId"
         }
         @Suppress("DEPRECATION")
         startActivityForResult(intent, requestCodeImportRoot)
@@ -1070,8 +1069,6 @@ class MainActivity : FlutterActivity() {
         if (root.startsWith("volume://")) {
             val volumeName = root.removePrefix("volume://")
             val items = scanMediaStoreImportVolume(volumeName)
-            lastImportDebugInfo =
-                "导入诊断：通过 MediaStore 扫描储存卡完成，找到 ${items.size} 个可导入项目\nvolume=$volumeName"
             return items
         }
         val items = mutableListOf<NativeExternalImportItem>()
@@ -1108,9 +1105,58 @@ class MainActivity : FlutterActivity() {
                     "${error.javaClass.simpleName}: ${error.message}"
             return emptyList()
         }
+        if (items.isEmpty()) {
+            val volumeName = importVolumeNameFromDocumentUri(rootUri)
+            if (!volumeName.isNullOrBlank()) {
+                val fallbackItems = scanMediaStoreImportVolume(volumeName)
+                lastImportDebugInfo =
+                    "导入诊断：授权目录为空，已回退到储存卡媒体索引，找到 ${fallbackItems.size} 个可导入项目\n" +
+                        "$uriInfo\nvolume=$volumeName"
+                return fallbackItems
+            }
+        }
         Log.i(logTag, "scanImportRoot found ${items.size} importable items")
         lastImportDebugInfo = "导入诊断：扫描完成，找到 ${items.size} 个可导入项目\n$uriInfo"
         return items.sortedByDescending { it.createdAtMillis }
+    }
+
+    private fun importVolumeNameFromDocumentUri(uri: Uri): String? {
+        val documentId = try {
+            when {
+                DocumentsContract.isTreeUri(uri) -> DocumentsContract.getTreeDocumentId(uri)
+                DocumentsContract.isDocumentUri(this, uri) -> DocumentsContract.getDocumentId(uri)
+                DocumentsContract.isRootUri(this, uri) -> "${DocumentsContract.getRootId(uri)}:"
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        val rootId = documentId.substringBefore(':').takeUnless { it.isBlank() } ?: return null
+        if (rootId.equals("primary", ignoreCase = true)) return null
+        return importMediaStoreVolumeNameForRoot(rootId)
+    }
+
+    private fun importMediaStoreVolumeNameForRoot(rootId: String): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return rootId
+        return try {
+            val storageManager = getSystemService(StorageManager::class.java)
+            storageManager.storageVolumes
+                .firstOrNull { volume ->
+                    volume.isRemovable &&
+                        volume.state == Environment.MEDIA_MOUNTED &&
+                        volumeMatchesImportRoot(volume, rootId)
+                }
+                ?.let { volume ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        volume.mediaStoreVolumeName
+                    } else {
+                        volume.uuid ?: rootId
+                    }
+                }
+        } catch (error: Exception) {
+            Log.w(logTag, "Unable to resolve MediaStore volume for document uri", error)
+            null
+        }
     }
 
     private fun scanMediaStoreImportVolume(volumeName: String): List<NativeExternalImportItem> {
@@ -1120,20 +1166,175 @@ class MainActivity : FlutterActivity() {
                 "导入诊断：储存卡未连接或未挂载\nvolume=$volumeName"
             return emptyList()
         }
-        val items = mutableListOf<NativeExternalImportItem>()
-        items += scanMediaStoreImportCollection(
+        val photoItems = scanMediaStoreImportCollection(
             volumeName = volumeName,
             baseUri = importMediaCollectionUri(volumeName, "photo"),
             type = "photo",
             includeDateTaken = true,
         )
-        items += scanMediaStoreImportCollection(
+        val videoItems = scanMediaStoreImportCollection(
             volumeName = volumeName,
             baseUri = importMediaCollectionUri(volumeName, "video"),
             type = "video",
             includeDateTaken = false,
         )
-        return items.sortedByDescending { it.createdAtMillis }
+        val filesItems = scanMediaStoreFilesImportVolume(volumeName)
+        val fileSystemItems = scanFileSystemImportVolume(volumeName)
+        val items = mergeImportItems(photoItems + videoItems, filesItems + fileSystemItems)
+            .sortedByDescending { it.createdAtMillis }
+        lastImportDebugInfo =
+            "导入诊断：储存卡扫描完成，找到 ${items.size} 个可导入项目\n" +
+                "volume=$volumeName images=${photoItems.size} videos=${videoItems.size} " +
+                "files=${filesItems.size} direct=${fileSystemItems.size}"
+        return items
+    }
+
+    private fun scanMediaStoreFilesImportVolume(volumeName: String): List<NativeExternalImportItem> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return emptyList()
+        val baseUri = MediaStore.Files.getContentUri(volumeName)
+        val projection = arrayOf(
+            MediaStore.Files.FileColumns._ID,
+            MediaStore.Files.FileColumns.DISPLAY_NAME,
+            MediaStore.Files.FileColumns.MIME_TYPE,
+            MediaStore.Files.FileColumns.MEDIA_TYPE,
+            MediaStore.Files.FileColumns.DATE_ADDED,
+            MediaStore.Files.FileColumns.DATE_MODIFIED,
+            MediaStore.Files.FileColumns.SIZE,
+        )
+        val selection =
+            "${MediaStore.Files.FileColumns.MEDIA_TYPE}=? OR " +
+                "${MediaStore.Files.FileColumns.MEDIA_TYPE}=?"
+        val selectionArgs = arrayOf(
+            MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
+            MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
+        )
+        val sortOrder =
+            "${MediaStore.Files.FileColumns.DATE_ADDED} DESC, " +
+                "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+        val items = mutableListOf<NativeExternalImportItem>()
+        try {
+            contentResolver.query(
+                baseUri,
+                projection,
+                selection,
+                selectionArgs,
+                sortOrder,
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+                val nameColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val mimeColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE)
+                val mediaTypeColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.MEDIA_TYPE)
+                val dateAddedColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_ADDED)
+                val modifiedColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                val sizeColumn = cursor.getColumnIndex(MediaStore.Files.FileColumns.SIZE)
+                while (cursor.moveToNext()) {
+                    val rowId = cursor.getLong(idColumn)
+                    val displayName = readString(cursor, nameColumn) ?: "$rowId"
+                    val mimeType = readString(cursor, mimeColumn) ?: mimeTypeFromName(displayName) ?: ""
+                    val mediaType = when (readLong(cursor, mediaTypeColumn)?.toInt()) {
+                        MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO -> "video"
+                        MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE -> "photo"
+                        else -> externalMediaType(displayName, mimeType)
+                    } ?: continue
+                    if (externalMediaType(displayName, mimeType) != mediaType) continue
+                    val dateAddedSeconds = readLong(cursor, dateAddedColumn)
+                    val modifiedSeconds = readLong(cursor, modifiedColumn)
+                    val createdAtMillis = when {
+                        dateAddedSeconds != null && dateAddedSeconds > 0L -> dateAddedSeconds * 1000
+                        modifiedSeconds != null && modifiedSeconds > 0L -> modifiedSeconds * 1000
+                        else -> 0L
+                    }
+                    val sizeBytes = readLong(cursor, sizeColumn)
+                    val documentUri = ContentUris.withAppendedId(baseUri, rowId)
+                    items.add(
+                        NativeExternalImportItem(
+                            id = documentUri.toString(),
+                            type = mediaType,
+                            displayName = displayName,
+                            createdAtMillis = createdAtMillis,
+                            sizeBytes = sizeBytes,
+                            pathOrUri = documentUri.toString(),
+                            imported = isPreviouslyImported(displayName, sizeBytes, modifiedSeconds ?: 0L),
+                        )
+                    )
+                }
+            }
+        } catch (error: SecurityException) {
+            Log.w(logTag, "MediaStore files permission denied for volume=$volumeName", error)
+        } catch (error: Exception) {
+            Log.w(logTag, "MediaStore files scan failed for volume=$volumeName", error)
+        }
+        return items
+    }
+
+    private fun scanFileSystemImportVolume(volumeName: String): List<NativeExternalImportItem> {
+        val volumeDirectory = importVolumeDirectory(volumeName) ?: return emptyList()
+        if (!volumeDirectory.canRead()) return emptyList()
+        val preferredRoots = listOf("DCIM", "Pictures", "Movies")
+            .map { File(volumeDirectory, it) }
+            .filter { it.exists() && it.canRead() }
+            .takeUnless { it.isEmpty() }
+            ?: listOf(volumeDirectory)
+        val items = mutableListOf<NativeExternalImportItem>()
+        for (root in preferredRoots) {
+            root.walkTopDown()
+                .onEnter { directory -> directory.canRead() }
+                .filter { file -> file.isFile && file.canRead() }
+                .forEach { file ->
+                    val mimeType = mimeTypeFromName(file.name) ?: ""
+                    val type = externalMediaType(file.name, mimeType) ?: return@forEach
+                    val modifiedAtMillis = file.lastModified().takeIf { it > 0L } ?: 0L
+                    val sizeBytes = file.length().takeIf { it >= 0L }
+                    val uri = Uri.fromFile(file).toString()
+                    items.add(
+                        NativeExternalImportItem(
+                            id = uri,
+                            type = type,
+                            displayName = file.name,
+                            createdAtMillis = modifiedAtMillis,
+                            sizeBytes = sizeBytes,
+                            pathOrUri = uri,
+                            imported = isPreviouslyImported(file.name, sizeBytes, modifiedAtMillis),
+                        )
+                    )
+                }
+        }
+        return items
+    }
+
+    private fun importVolumeDirectory(volumeName: String): File? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return try {
+            val storageManager = getSystemService(StorageManager::class.java)
+            storageManager.storageVolumes
+                .firstOrNull { volume ->
+                    volume.isRemovable &&
+                        volume.state == Environment.MEDIA_MOUNTED &&
+                        volumeMatchesImportRoot(volume, volumeName)
+                }
+                ?.directory
+        } catch (error: Exception) {
+            Log.w(logTag, "Unable to resolve import volume directory", error)
+            null
+        }
+    }
+
+    private fun mergeImportItems(
+        mediaStoreItems: List<NativeExternalImportItem>,
+        fileSystemItems: List<NativeExternalImportItem>,
+    ): List<NativeExternalImportItem> {
+        val merged = mutableListOf<NativeExternalImportItem>()
+        val seen = mutableSetOf<String>()
+        for (item in mediaStoreItems + fileSystemItems) {
+            val key = listOf(
+                item.displayName.trim().lowercase(Locale.US),
+                item.sizeBytes?.toString() ?: "",
+            ).joinToString("|")
+            if (seen.add(key)) {
+                merged.add(item)
+            }
+        }
+        return merged
     }
 
     private fun importMediaCollectionUri(volumeName: String, type: String): Uri {
@@ -1323,7 +1524,9 @@ class MainActivity : FlutterActivity() {
     private fun fetchExternalPreviewImageData(pathOrUri: String): ByteArray? {
         val uri = Uri.parse(pathOrUri)
         val bitmap = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (uri.scheme == "file") {
+                BitmapFactory.decodeFile(uri.path)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 contentResolver.loadThumbnail(uri, Size(768, 768), null)
             } else {
                 contentResolver.openInputStream(uri)?.use {
@@ -1344,7 +1547,7 @@ class MainActivity : FlutterActivity() {
     private fun fetchExternalFullImageData(pathOrUri: String): ByteArray? {
         val uri = Uri.parse(pathOrUri)
         return try {
-            contentResolver.openInputStream(uri)?.use { input ->
+            openSourceInputStream(uri)?.use { input ->
                 input.readBytes()
             }
         } catch (error: Exception) {
@@ -1396,7 +1599,9 @@ class MainActivity : FlutterActivity() {
 
     private fun deleteExternalMediaDirect(sourceUri: Uri) {
         val deleted = try {
-            if (DocumentsContract.isDocumentUri(this, sourceUri) || DocumentsContract.isTreeUri(sourceUri)) {
+            if (sourceUri.scheme == "file") {
+                File(sourceUri.path ?: "").delete()
+            } else if (DocumentsContract.isDocumentUri(this, sourceUri) || DocumentsContract.isTreeUri(sourceUri)) {
                 DocumentsContract.deleteDocument(contentResolver, sourceUri)
             } else {
                 contentResolver.delete(sourceUri, null, null) > 0
@@ -1471,7 +1676,7 @@ class MainActivity : FlutterActivity() {
         val destinationUri = contentResolver.insert(collection, values)
             ?: throw IllegalStateException("Unable to create MediaStore item")
         try {
-            contentResolver.openInputStream(sourceUri).use { input ->
+            openSourceInputStream(sourceUri).use { input ->
                 contentResolver.openOutputStream(destinationUri).use { output ->
                     if (input == null || output == null) {
                         throw IllegalStateException("Unable to open import streams")
@@ -1520,6 +1725,14 @@ class MainActivity : FlutterActivity() {
             .apply()
     }
 
+    private fun openSourceInputStream(uri: Uri): InputStream? {
+        if (uri.scheme == "file") {
+            val path = uri.path ?: return null
+            return File(path).inputStream()
+        }
+        return contentResolver.openInputStream(uri)
+    }
+
     private fun isPreviouslyImported(
         displayName: String,
         sizeBytes: Long?,
@@ -1542,6 +1755,14 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun queryDocumentLong(uri: Uri, columnName: String): Long? {
+        if (uri.scheme == "file") {
+            val file = File(uri.path ?: return null)
+            return when (columnName) {
+                DocumentsContract.Document.COLUMN_SIZE -> file.length()
+                DocumentsContract.Document.COLUMN_LAST_MODIFIED -> file.lastModified()
+                else -> null
+            }
+        }
         return try {
             contentResolver.query(uri, arrayOf(columnName), null, null, null)?.use { cursor ->
                 if (!cursor.moveToFirst()) return@use null

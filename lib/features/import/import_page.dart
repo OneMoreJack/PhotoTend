@@ -111,10 +111,6 @@ class _ImportPageState extends State<ImportPage> {
         child: Column(
           children: [
             _ImportHeader(
-              itemCount: items.length,
-              totalSizeBytes: _controller.totalSizeBytes,
-              selectedCount: _controller.selectedCount,
-              selectedSizeBytes: _controller.selectedSizeBytes,
               albumName: _selectedAlbumName,
               isImporting: _controller.isImporting,
               onBack: () => Navigator.of(context).maybePop(),
@@ -123,7 +119,10 @@ class _ImportPageState extends State<ImportPage> {
             Expanded(child: _buildBody(items)),
             if (items.isNotEmpty)
               _ImportBottomBar(
+                itemCount: items.length,
+                totalSizeBytes: _controller.totalSizeBytes,
                 selectedCount: _controller.selectedCount,
+                selectedSizeBytes: _controller.selectedSizeBytes,
                 isBusy: _controller.isImporting || _controller.isLoading,
                 importCompletedCount: _controller.importCompletedCount,
                 importTotalCount: _controller.importTotalCount,
@@ -543,20 +542,12 @@ class _ImportDayGroup {
 
 class _ImportHeader extends StatelessWidget {
   const _ImportHeader({
-    required this.itemCount,
-    required this.totalSizeBytes,
-    required this.selectedCount,
-    required this.selectedSizeBytes,
     required this.albumName,
     required this.isImporting,
     required this.onBack,
     required this.onAlbumTap,
   });
 
-  final int itemCount;
-  final int totalSizeBytes;
-  final int selectedCount;
-  final int selectedSizeBytes;
   final String albumName;
   final bool isImporting;
   final VoidCallback onBack;
@@ -564,118 +555,79 @@ class _ImportHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasSelection = selectedCount > 0;
-    final statLines = <String>[
-      if (hasSelection)
-        '$selectedCount 个项目'
-      else if (itemCount > 0)
-        '$itemCount 个项目',
-      if (hasSelection && selectedSizeBytes > 0)
-        _formatBytes(selectedSizeBytes)
-      else if (!hasSelection && totalSizeBytes > 0)
-        _formatBytes(totalSizeBytes),
-    ];
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: _importSurface,
         border: Border(bottom: BorderSide(color: Color(0x14000000))),
       ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: '返回',
-                  onPressed: onBack,
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  iconSize: 28,
-                  color: HuashuColors.ink,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '导入',
-                    textAlign: TextAlign.left,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _importInk,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-              ],
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: '返回',
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back_rounded),
+              iconSize: 28,
+              color: HuashuColors.ink,
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (statLines.isNotEmpty)
-                  Text(
-                    statLines.join('  '),
-                    style: const TextStyle(
-                      color: _importMuted,
-                      fontSize: 14,
-                      height: 1.1,
-                      fontWeight: FontWeight.w500,
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                '导入',
+                textAlign: TextAlign.left,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _importInk,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: InkWell(
+                  key: const Key('import-album-picker-btn'),
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: isImporting ? null : onAlbumTap,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 8,
                     ),
-                  ),
-                const Spacer(),
-                Flexible(
-                  child: InkWell(
-                    key: const Key('import-album-picker-btn'),
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: isImporting ? null : onAlbumTap,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            '导入至:',
-                            style: TextStyle(
-                              color: _importInk,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            albumName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _importBlue,
                               fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              albumName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _importBlue,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: _importBlue,
-                            size: 20,
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 2),
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: _importBlue,
+                          size: 20,
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1187,7 +1139,10 @@ class _AlbumPickerTile extends StatelessWidget {
 
 class _ImportBottomBar extends StatelessWidget {
   const _ImportBottomBar({
+    required this.itemCount,
+    required this.totalSizeBytes,
     required this.selectedCount,
+    required this.selectedSizeBytes,
     required this.isBusy,
     required this.importCompletedCount,
     required this.importTotalCount,
@@ -1198,7 +1153,10 @@ class _ImportBottomBar extends StatelessWidget {
     required this.onImport,
   });
 
+  final int itemCount;
+  final int totalSizeBytes;
   final int selectedCount;
+  final int selectedSizeBytes;
   final bool isBusy;
   final int importCompletedCount;
   final int importTotalCount;
@@ -1210,6 +1168,11 @@ class _ImportBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasSelection = selectedCount > 0;
+    final countText = hasSelection ? '已选 $selectedCount' : '$itemCount 个项目';
+    final size = hasSelection ? selectedSizeBytes : totalSizeBytes;
+    final sizeText = size > 0 ? _formatBytes(size) : null;
+    final importLabel = selectedCount == 0 ? '导入全部' : '导入选中';
     return DecoratedBox(
       decoration: BoxDecoration(
         color: HuashuColors.surfaceRaised.withValues(alpha: 0.98),
@@ -1222,7 +1185,7 @@ class _ImportBottomBar extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(26, 12, 26, 18),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1251,59 +1214,156 @@ class _ImportBottomBar extends StatelessWidget {
             ],
             Row(
               children: [
-                IconButton(
-                  tooltip: '选择储存卡',
-                  onPressed: isBusy ? null : onChoose,
-                  color: HuashuColors.inkSoft,
-                  iconSize: 32,
-                  icon: const Icon(Icons.folder_open_rounded),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  tooltip: '刷新',
-                  onPressed: isBusy ? null : onRefresh,
-                  color: HuashuColors.inkSoft,
-                  iconSize: 32,
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: '删除选中',
-                  onPressed: isBusy ? null : onMoveToTrash,
-                  color: _importBlue,
-                  disabledColor: HuashuColors.line,
-                  iconSize: 32,
-                  icon: const Icon(Icons.delete_forever_outlined),
+                Expanded(
+                  child: _ImportBatchSummary(
+                    countText: countText,
+                    sizeText: sizeText,
+                    hasSelection: hasSelection,
+                  ),
                 ),
                 const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: isBusy ? null : onImport,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _importBlue,
-                    disabledBackgroundColor: HuashuColors.line,
-                    foregroundColor: Colors.white,
-                    disabledForegroundColor: Colors.white.withValues(
-                      alpha: 0.72,
+                PopupMenuButton<_ImportMoreAction>(
+                  key: const Key('import-more-actions-btn'),
+                  tooltip: '更多操作',
+                  enabled: !isBusy,
+                  icon: const Icon(Icons.more_horiz_rounded),
+                  color: HuashuColors.surfaceRaised,
+                  onSelected: (action) {
+                    switch (action) {
+                      case _ImportMoreAction.choose:
+                        onChoose();
+                      case _ImportMoreAction.refresh:
+                        onRefresh();
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _ImportMoreAction.choose,
+                      child: ListTile(
+                        leading: Icon(Icons.folder_open_rounded),
+                        title: Text('重选储存卡'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                    elevation: 2,
-                    shadowColor: _importBlue.withValues(alpha: 0.28),
-                    minimumSize: const Size(150, 56),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+                    PopupMenuItem(
+                      value: _ImportMoreAction.refresh,
+                      child: ListTile(
+                        leading: Icon(Icons.refresh_rounded),
+                        title: Text('刷新'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: isBusy ? null : onMoveToTrash,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _importBlue,
+                      disabledForegroundColor: HuashuColors.faint,
+                      side: BorderSide(
+                        color: onMoveToTrash == null
+                            ? HuashuColors.line
+                            : _importBlue.withValues(alpha: 0.42),
+                      ),
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
+                    icon: const Icon(Icons.delete_forever_outlined, size: 24),
+                    label: const Text('删除'),
                   ),
-                  icon: const Icon(Icons.file_download_outlined, size: 26),
-                  label: Text(selectedCount == 0 ? '导入全部' : '导入选中'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: isBusy ? null : onImport,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _importBlue,
+                      disabledBackgroundColor: HuashuColors.line,
+                      foregroundColor: Colors.white,
+                      disabledForegroundColor: Colors.white.withValues(
+                        alpha: 0.72,
+                      ),
+                      elevation: 2,
+                      shadowColor: _importBlue.withValues(alpha: 0.28),
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    icon: const Icon(Icons.file_download_outlined, size: 24),
+                    label: Text(importLabel),
+                  ),
                 ),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+enum _ImportMoreAction { choose, refresh }
+
+class _ImportBatchSummary extends StatelessWidget {
+  const _ImportBatchSummary({
+    required this.countText,
+    required this.sizeText,
+    required this.hasSelection,
+  });
+
+  final String countText;
+  final String? sizeText;
+  final bool hasSelection;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = hasSelection ? '当前选择' : '待导入';
+    return Column(
+      key: const Key('import-bottom-summary'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: HuashuColors.faint,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          [countText, if (sizeText != null) sizeText].join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: _importInk,
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            height: 1.15,
+          ),
+        ),
+      ],
     );
   }
 }

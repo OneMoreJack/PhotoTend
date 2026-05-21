@@ -165,7 +165,7 @@ void main() {
     expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
     expect(find.byIcon(Icons.close_rounded), findsNothing);
     expect(find.byKey(const Key('import-album-picker-btn')), findsOneWidget);
-    expect(find.text('导入至:'), findsOneWidget);
+    expect(find.text('导入至:'), findsNothing);
     expect(find.text('你的图库'), findsOneWidget);
     expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
   });

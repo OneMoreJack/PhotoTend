@@ -18,6 +18,7 @@ class ImportController extends ChangeNotifier {
   bool needsStorageCard = false;
   String? statusMessage;
   String? completionMessage;
+  String? debugMessage;
   int importTotalCount = 0;
   int importCompletedCount = 0;
 
@@ -50,6 +51,7 @@ class ImportController extends ChangeNotifier {
     isLoading = true;
     statusMessage = null;
     completionMessage = null;
+    debugMessage = null;
     _resetImportProgress();
     notifyListeners();
     try {
@@ -60,6 +62,7 @@ class ImportController extends ChangeNotifier {
         _statuses.clear();
         needsStorageCard = true;
         statusMessage = '请连接外接储存卡，或选择储存卡目录。';
+        debugMessage = await _repository.getImportDebugInfo();
         return;
       }
       final scanned = await _repository.scanImportRoot();
@@ -73,9 +76,13 @@ class ImportController extends ChangeNotifier {
       );
       needsStorageCard = scanned.isEmpty;
       statusMessage = scanned.isEmpty ? '没有找到可导入的照片或视频。' : null;
+      debugMessage = scanned.isEmpty
+          ? await _repository.getImportDebugInfo()
+          : null;
     } catch (_) {
       needsStorageCard = true;
       statusMessage = '读取外接储存卡失败，请重新选择或刷新。';
+      debugMessage = await _safeImportDebugInfo();
     } finally {
       isLoading = false;
       notifyListeners();
@@ -94,6 +101,7 @@ class ImportController extends ChangeNotifier {
     isLoading = true;
     statusMessage = null;
     completionMessage = null;
+    debugMessage = null;
     _resetImportProgress();
     notifyListeners();
     try {
@@ -101,6 +109,7 @@ class ImportController extends ChangeNotifier {
       if (root == null || root.isEmpty) {
         needsStorageCard = true;
         statusMessage = '请连接外接储存卡，或选择储存卡目录。';
+        debugMessage = await _repository.getImportDebugInfo();
         return;
       }
       final scanned = await _repository.scanImportRoot();
@@ -113,9 +122,13 @@ class ImportController extends ChangeNotifier {
       _syncCurrentItems(scanned);
       needsStorageCard = scanned.isEmpty;
       statusMessage = scanned.isEmpty ? '没有找到可导入的照片或视频。' : null;
+      debugMessage = scanned.isEmpty
+          ? await _repository.getImportDebugInfo()
+          : null;
     } catch (_) {
       needsStorageCard = true;
       statusMessage = '读取外接储存卡失败，请重新选择或刷新。';
+      debugMessage = await _safeImportDebugInfo();
     } finally {
       isLoading = false;
       notifyListeners();
@@ -201,10 +214,12 @@ class ImportController extends ChangeNotifier {
     _selectedIds.removeAll(deletedIds);
     if (deletedIds.length == ids.length) {
       completionMessage = '已从储存卡删除 ${deletedIds.length} 个项目';
+      debugMessage = null;
     } else {
       statusMessage = deletedIds.isEmpty
           ? '删除失败，请确认储存卡目录允许写入后重试。'
           : '已删除 ${deletedIds.length} 个项目，${ids.length - deletedIds.length} 个删除失败。';
+      debugMessage = await _safeImportDebugInfo();
     }
     isLoading = false;
     notifyListeners();
@@ -267,6 +282,14 @@ class ImportController extends ChangeNotifier {
   void _resetImportProgress() {
     importTotalCount = 0;
     importCompletedCount = 0;
+  }
+
+  Future<String?> _safeImportDebugInfo() async {
+    try {
+      return await _repository.getImportDebugInfo();
+    } catch (_) {
+      return null;
+    }
   }
 
   void _syncCurrentItems(List<ExternalImportItem> items) {

@@ -40,6 +40,7 @@ abstract class ExternalImportRepository {
   Future<List<ExternalImportRoot>> listImportRoots();
   Future<String?> requestImportRoot({String? rootId});
   Future<List<ExternalImportItem>> scanImportRoot();
+  Future<String?> getImportDebugInfo();
   Future<Uint8List?> fetchPreviewImageData(String pathOrUri);
   Future<Uint8List?> fetchFullImageData(String pathOrUri);
   Future<void> deleteExternalMedia(ExternalImportItem item);
@@ -83,6 +84,11 @@ class MethodChannelExternalImportRepository
         .map(_itemFromRaw)
         .where((item) => item.id.isNotEmpty && item.pathOrUri.isNotEmpty)
         .toList(growable: false);
+  }
+
+  @override
+  Future<String?> getImportDebugInfo() {
+    return channel.invokeMethod<String>('getImportDebugInfo');
   }
 
   @override
@@ -190,6 +196,11 @@ class FakeExternalImportRepository implements ExternalImportRepository {
   Future<List<ExternalImportItem>> scanImportRoot() async {
     if (savedRoot == null) return const <ExternalImportItem>[];
     return List<ExternalImportItem>.from(_items);
+  }
+
+  @override
+  Future<String?> getImportDebugInfo() async {
+    return 'root=$savedRoot items=${_items.length}';
   }
 
   @override

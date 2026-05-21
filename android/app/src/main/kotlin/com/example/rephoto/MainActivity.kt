@@ -39,7 +39,9 @@ class MainActivity : FlutterActivity() {
     private var pendingPermissionResult: MethodChannel.Result? = null
     private var pendingDeleteResult: MethodChannel.Result? = null
     private var pendingImportRootResult: MethodChannel.Result? = null
+    private var pendingImportRootId: String? = null
     private var pendingDeleteIds: Set<String>? = null
+    private var pendingExternalDeleteUri: Uri? = null
     private var useLegacyPaging = false
     private var legacyMediaSnapshot: List<NativeMediaItem>? = null
     private val locationCachePrefs by lazy {
@@ -52,6 +54,7 @@ class MainActivity : FlutterActivity() {
     }
     private val importRootUriKey = "import_root_uri"
     private val importFingerprintPrefix = "imported_v1_"
+    private var lastImportDebugInfo: String = "导入诊断：尚未开始扫描。"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -184,6 +187,7 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "getSavedImportRoot" -> result.success(readSavedImportRoot())
                     "listImportRoots" -> result.success(listImportRoots())
+                    "getImportDebugInfo" -> result.success(lastImportDebugInfo)
                     "requestImportRoot" -> {
                         val rootId = call.argument<String>("rootId")
                         requestImportRoot(result, rootId)
@@ -223,10 +227,7 @@ class MainActivity : FlutterActivity() {
                         if (sourceUri.isNullOrBlank()) {
                             result.error("INVALID_ARGUMENT", "sourceUri is empty", null)
                         } else {
-                            runAsync(result) {
-                                deleteExternalMedia(sourceUri)
-                                null
-                            }
+                            deleteExternalMedia(sourceUri, result)
                         }
                     }
                     else -> result.notImplemented()
@@ -240,38 +241,61 @@ class MainActivity : FlutterActivity() {
         if (requestCode == requestCodeDeleteMedia) {
             if (resultCode == android.app.Activity.RESULT_OK) {
                 Log.i(logTag, "User approved deletion")
-                pendingDeleteResult?.success(null)
+                val externalDeleteUri = pendingExternalDeleteUri
+                if (externalDeleteUri != null && mediaUriStillExists(externalDeleteUri)) {
+                    lastImportDebugInfo = "导入诊断：系统确认删除后，媒体仍然存在\nuri=$externalDeleteUri"
+                    pendingDeleteResult?.error("DELETE_FAILED", "Media still exists after delete request", null)
+                } else {
+                    if (externalDeleteUri != null) {
+                        lastImportDebugInfo = "导入诊断：已从储存卡删除媒体\nuri=$externalDeleteUri"
+                    }
+                    pendingDeleteResult?.success(null)
+                }
             } else {
                 Log.w(logTag, "User denied deletion")
                 pendingDeleteResult?.error("DENIED", "User denied deletion request", null)
             }
             pendingDeleteResult = null
             pendingDeleteIds = null
+            pendingExternalDeleteUri = null
         } else if (requestCode == requestCodeImportRoot) {
             val result = pendingImportRootResult
+            val requestedRootId = pendingImportRootId
             pendingImportRootResult = null
+            pendingImportRootId = null
             if (resultCode == android.app.Activity.RESULT_OK && data?.data != null) {
                 val uri = data.data!!
                 val flags = data.flags and (
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                     )
-                Log.i(
-                    logTag,
-                    "Import root granted uri=$uri flags=$flags " +
+                val grantInfo =
+                    "uri=$uri\nflags=$flags\n" +
                         "tree=${DocumentsContract.isTreeUri(uri)} " +
                         "document=${DocumentsContract.isDocumentUri(this, uri)} " +
                         "root=${DocumentsContract.isRootUri(this, uri)}"
+                Log.i(
+                    logTag,
+                    "Import root granted $grantInfo"
                 )
+                lastImportDebugInfo = "导入诊断：已授权\n$grantInfo"
                 try {
                     contentResolver.takePersistableUriPermission(uri, flags)
                 } catch (error: Exception) {
                     Log.w(logTag, "Persist import root permission failed", error)
+                    lastImportDebugInfo += "\npersist failed=${error.javaClass.simpleName}: ${error.message}"
                 }
                 val value = uri.toString()
                 externalImportPrefs.edit().putString(importRootUriKey, value).apply()
                 result?.success(value)
+            } else if (resultCode == android.app.Activity.RESULT_OK && !requestedRootId.isNullOrBlank()) {
+                val value = "volume://$requestedRootId"
+                lastImportDebugInfo =
+                    "导入诊断：储存卡授权成功，没有返回目录 URI\nvolume=$requestedRootId"
+                externalImportPrefs.edit().putString(importRootUriKey, value).apply()
+                result?.success(value)
             } else {
+                lastImportDebugInfo = "导入诊断：用户取消或系统未返回授权位置。"
                 result?.success(null)
             }
         }
@@ -877,7 +901,19 @@ class MainActivity : FlutterActivity() {
 
     private fun readSavedImportRoot(): String? {
         val value = externalImportPrefs.getString(importRootUriKey, null)
-        if (value.isNullOrBlank()) return null
+        if (value.isNullOrBlank()) {
+            lastImportDebugInfo = "导入诊断：没有已保存的授权位置。"
+            return null
+        }
+        if (value.startsWith("volume://")) {
+            val volumeName = value.removePrefix("volume://")
+            if (isImportVolumeMounted(volumeName)) {
+                return value
+            }
+            externalImportPrefs.edit().remove(importRootUriKey).apply()
+            lastImportDebugInfo = "导入诊断：储存卡未连接或未挂载\nvolume=$volumeName"
+            return null
+        }
         val uri = Uri.parse(value)
         val hasPersistedPermission = contentResolver.persistedUriPermissions.any {
             it.uri == uri && it.isReadPermission
@@ -889,6 +925,11 @@ class MainActivity : FlutterActivity() {
             Intent.FLAG_GRANT_READ_URI_PERMISSION
         ) == PackageManager.PERMISSION_GRANTED
         val hasPermission = hasPersistedPermission || hasActivePermission
+        if (!hasPermission) {
+            lastImportDebugInfo =
+                "导入诊断：授权位置不可读\nuri=$uri\n" +
+                    "persisted=$hasPersistedPermission active=$hasActivePermission"
+        }
         return if (hasPermission) value else null
     }
 
@@ -903,8 +944,13 @@ class MainActivity : FlutterActivity() {
                 .map { volume ->
                     val description = volume.getDescription(this)
                     val uuid = volume.uuid
+                    val mediaStoreVolumeName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        volume.mediaStoreVolumeName
+                    } else {
+                        uuid ?: description
+                    }
                     mapOf(
-                        "id" to (uuid ?: description),
+                        "id" to mediaStoreVolumeName,
                         "label" to (description.takeUnless { it.isNullOrBlank() } ?: "储存卡"),
                         "description" to if (uuid.isNullOrBlank()) {
                             "已挂载的外接储存卡"
@@ -921,12 +967,20 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun requestImportRoot(result: MethodChannel.Result, rootId: String? = null) {
+        if (!rootId.isNullOrBlank()) {
+            val value = "volume://$rootId"
+            externalImportPrefs.edit().putString(importRootUriKey, value).apply()
+            lastImportDebugInfo = "导入诊断：已选择储存卡，准备通过 MediaStore 扫描\nvolume=$rootId"
+            result.success(value)
+            return
+        }
         if (pendingImportRootResult != null) {
             result.error("BUSY", "Import root picker is already open", null)
             return
         }
         pendingImportRootResult = result
-        val intent = buildImportRootPickerIntent(rootId).apply {
+        pendingImportRootId = null
+        val intent = buildImportRootPickerIntent().apply {
             addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
@@ -948,7 +1002,7 @@ class MainActivity : FlutterActivity() {
                         volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED
                     }
                     .firstOrNull { volume ->
-                        volume.uuid == rootId || volume.getDescription(this) == rootId
+                        volumeMatchesImportRoot(volume, rootId)
                     }
                 @Suppress("DEPRECATION")
                 val directAccessIntent = selected?.createAccessIntent(null)
@@ -968,8 +1022,7 @@ class MainActivity : FlutterActivity() {
                     }
                     .firstOrNull { volume ->
                         rootId.isNullOrBlank() ||
-                            volume.uuid == rootId ||
-                            volume.getDescription(this) == rootId
+                            volumeMatchesImportRoot(volume, rootId)
                     }
                 val intent = removable?.createOpenDocumentTreeIntent()
                 if (intent != null) {
@@ -982,10 +1035,52 @@ class MainActivity : FlutterActivity() {
         return Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
     }
 
+    private fun volumeMatchesImportRoot(
+        volume: android.os.storage.StorageVolume,
+        rootId: String?,
+    ): Boolean {
+        if (rootId.isNullOrBlank()) return false
+        val mediaStoreVolumeName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            volume.mediaStoreVolumeName
+        } else {
+            null
+        }
+        return volume.uuid == rootId ||
+            volume.getDescription(this) == rootId ||
+            mediaStoreVolumeName == rootId
+    }
+
+    private fun isImportVolumeMounted(volumeName: String): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return true
+        return try {
+            val storageManager = getSystemService(StorageManager::class.java)
+            storageManager.storageVolumes.any { volume ->
+                volume.isRemovable &&
+                    volume.state == Environment.MEDIA_MOUNTED &&
+                    volumeMatchesImportRoot(volume, volumeName)
+            }
+        } catch (error: Exception) {
+            Log.w(logTag, "Unable to verify import volume mount state", error)
+            false
+        }
+    }
+
     private fun scanImportRoot(): List<NativeExternalImportItem> {
         val root = readSavedImportRoot() ?: return emptyList()
+        if (root.startsWith("volume://")) {
+            val volumeName = root.removePrefix("volume://")
+            val items = scanMediaStoreImportVolume(volumeName)
+            lastImportDebugInfo =
+                "导入诊断：通过 MediaStore 扫描储存卡完成，找到 ${items.size} 个可导入项目\nvolume=$volumeName"
+            return items
+        }
         val items = mutableListOf<NativeExternalImportItem>()
         val rootUri = Uri.parse(root)
+        val uriInfo =
+            "uri=$rootUri\n" +
+                "tree=${DocumentsContract.isTreeUri(rootUri)} " +
+                "document=${DocumentsContract.isDocumentUri(this, rootUri)} " +
+                "root=${DocumentsContract.isRootUri(this, rootUri)}"
         try {
             when {
                 DocumentsContract.isTreeUri(rootUri) -> {
@@ -1002,15 +1097,137 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> {
                     Log.w(logTag, "Unsupported import root uri: $rootUri")
+                    lastImportDebugInfo = "导入诊断：不支持的授权 URI\n$uriInfo"
                     return emptyList()
                 }
             }
         } catch (error: Exception) {
             Log.w(logTag, "scanImportRoot failed for uri=$rootUri", error)
+            lastImportDebugInfo =
+                "导入诊断：扫描失败\n$uriInfo\n" +
+                    "${error.javaClass.simpleName}: ${error.message}"
             return emptyList()
         }
         Log.i(logTag, "scanImportRoot found ${items.size} importable items")
+        lastImportDebugInfo = "导入诊断：扫描完成，找到 ${items.size} 个可导入项目\n$uriInfo"
         return items.sortedByDescending { it.createdAtMillis }
+    }
+
+    private fun scanMediaStoreImportVolume(volumeName: String): List<NativeExternalImportItem> {
+        if (!isImportVolumeMounted(volumeName)) {
+            externalImportPrefs.edit().remove(importRootUriKey).apply()
+            lastImportDebugInfo =
+                "导入诊断：储存卡未连接或未挂载\nvolume=$volumeName"
+            return emptyList()
+        }
+        val items = mutableListOf<NativeExternalImportItem>()
+        items += scanMediaStoreImportCollection(
+            volumeName = volumeName,
+            baseUri = importMediaCollectionUri(volumeName, "photo"),
+            type = "photo",
+            includeDateTaken = true,
+        )
+        items += scanMediaStoreImportCollection(
+            volumeName = volumeName,
+            baseUri = importMediaCollectionUri(volumeName, "video"),
+            type = "video",
+            includeDateTaken = false,
+        )
+        return items.sortedByDescending { it.createdAtMillis }
+    }
+
+    private fun importMediaCollectionUri(volumeName: String, type: String): Uri {
+        return if (type == "video") {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Video.Media.getContentUri(volumeName)
+            } else {
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            }
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Images.Media.getContentUri(volumeName)
+            } else {
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            }
+        }
+    }
+
+    private fun scanMediaStoreImportCollection(
+        volumeName: String,
+        baseUri: Uri,
+        type: String,
+        includeDateTaken: Boolean,
+    ): List<NativeExternalImportItem> {
+        val dateTakenColumnName = "datetaken"
+        val dateAddedColumnName = "date_added"
+        val modifiedColumnName = "date_modified"
+        val projection = mutableListOf(
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.DISPLAY_NAME,
+            MediaStore.MediaColumns.MIME_TYPE,
+            dateAddedColumnName,
+            modifiedColumnName,
+            MediaStore.MediaColumns.SIZE,
+        )
+        if (includeDateTaken) {
+            projection.add(3, dateTakenColumnName)
+        }
+        val sortOrder = if (includeDateTaken) {
+            "$dateTakenColumnName DESC, $dateAddedColumnName DESC"
+        } else {
+            "$dateAddedColumnName DESC, $modifiedColumnName DESC"
+        }
+        val items = mutableListOf<NativeExternalImportItem>()
+        try {
+            contentResolver.query(baseUri, projection.toTypedArray(), null, null, sortOrder)?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                val nameColumn = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+                val mimeColumn = cursor.getColumnIndex(MediaStore.MediaColumns.MIME_TYPE)
+                val dateTakenColumn = cursor.getColumnIndex(dateTakenColumnName)
+                val dateAddedColumn = cursor.getColumnIndex(dateAddedColumnName)
+                val modifiedColumn = cursor.getColumnIndex(modifiedColumnName)
+                val sizeColumn = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
+                while (cursor.moveToNext()) {
+                    val rowId = cursor.getLong(idColumn)
+                    val displayName = readString(cursor, nameColumn) ?: "$rowId"
+                    val mimeType = readString(cursor, mimeColumn) ?: mimeTypeFromName(displayName) ?: ""
+                    if (externalMediaType(displayName, mimeType) != type) continue
+                    val dateTakenMillis = readLong(cursor, dateTakenColumn)
+                    val dateAddedSeconds = readLong(cursor, dateAddedColumn)
+                    val modifiedSeconds = readLong(cursor, modifiedColumn)
+                    val createdAtMillis = when {
+                        dateTakenMillis != null && dateTakenMillis > 0L -> dateTakenMillis
+                        dateAddedSeconds != null && dateAddedSeconds > 0L -> dateAddedSeconds * 1000
+                        modifiedSeconds != null && modifiedSeconds > 0L -> modifiedSeconds * 1000
+                        else -> 0L
+                    }
+                    val sizeBytes = readLong(cursor, sizeColumn)
+                    val documentUri = ContentUris.withAppendedId(baseUri, rowId)
+                    items.add(
+                        NativeExternalImportItem(
+                            id = documentUri.toString(),
+                            type = type,
+                            displayName = displayName,
+                            createdAtMillis = createdAtMillis,
+                            sizeBytes = sizeBytes,
+                            pathOrUri = documentUri.toString(),
+                            imported = isPreviouslyImported(displayName, sizeBytes, modifiedSeconds ?: 0L),
+                        )
+                    )
+                }
+            }
+        } catch (error: SecurityException) {
+            lastImportDebugInfo =
+                "导入诊断：MediaStore 读取权限不足\nvolume=$volumeName type=$type\n" +
+                    "${error.javaClass.simpleName}: ${error.message}"
+            return emptyList()
+        } catch (error: Exception) {
+            lastImportDebugInfo =
+                "导入诊断：MediaStore 扫描失败\nvolume=$volumeName type=$type\n" +
+                    "${error.javaClass.simpleName}: ${error.message}"
+            return emptyList()
+        }
+        return items
     }
 
     private fun scanDocumentSubtree(
@@ -1136,16 +1353,76 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun deleteExternalMedia(sourceUriValue: String) {
+    private fun deleteExternalMedia(sourceUriValue: String, result: MethodChannel.Result) {
         val sourceUri = Uri.parse(sourceUriValue)
+        if (sourceUri.scheme == "content" &&
+            sourceUri.authority == MediaStore.AUTHORITY &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+        ) {
+            if (pendingDeleteResult != null) {
+                result.error("BUSY", "A delete request is already pending", null)
+                return
+            }
+            try {
+                val pendingIntent = MediaStore.createDeleteRequest(contentResolver, listOf(sourceUri))
+                pendingDeleteResult = result
+                pendingExternalDeleteUri = sourceUri
+                lastImportDebugInfo = "导入诊断：已发起系统删除授权\nuri=$sourceUri"
+                @Suppress("DEPRECATION")
+                startIntentSenderForResult(
+                    pendingIntent.intentSender,
+                    requestCodeDeleteMedia,
+                    null,
+                    0,
+                    0,
+                    0,
+                )
+            } catch (error: Exception) {
+                Log.w(logTag, "MediaStore delete request failed", error)
+                pendingDeleteResult = null
+                pendingExternalDeleteUri = null
+                lastImportDebugInfo =
+                    "导入诊断：系统删除授权创建失败\nuri=$sourceUri\n" +
+                        "${error.javaClass.simpleName}: ${error.message}"
+                result.error("DELETE_FAILED", error.message ?: "Unable to delete media", null)
+            }
+            return
+        }
+        runAsync(result) {
+            deleteExternalMediaDirect(sourceUri)
+            null
+        }
+    }
+
+    private fun deleteExternalMediaDirect(sourceUri: Uri) {
         val deleted = try {
-            DocumentsContract.deleteDocument(contentResolver, sourceUri)
+            if (DocumentsContract.isDocumentUri(this, sourceUri) || DocumentsContract.isTreeUri(sourceUri)) {
+                DocumentsContract.deleteDocument(contentResolver, sourceUri)
+            } else {
+                contentResolver.delete(sourceUri, null, null) > 0
+            }
         } catch (error: Exception) {
             Log.w(logTag, "deleteExternalMedia failed", error)
             false
         }
         if (!deleted) {
             throw IllegalStateException("Unable to delete external media")
+        }
+    }
+
+    private fun mediaUriStillExists(uri: Uri): Boolean {
+        return try {
+            contentResolver.query(
+                uri,
+                arrayOf(MediaStore.MediaColumns._ID),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                cursor.moveToFirst()
+            } ?: false
+        } catch (error: Exception) {
+            false
         }
     }
 

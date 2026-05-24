@@ -12,9 +12,12 @@ class ImportController extends ChangeNotifier {
   final List<ExternalImportItem> _trashedItems = <ExternalImportItem>[];
   final Set<String> _selectedIds = <String>{};
   final Map<String, ImportItemStatus> _statuses = <String, ImportItemStatus>{};
+  int _scanSession = 0;
 
   bool isLoading = false;
   bool isImporting = false;
+  bool includeRaw = false;
+  bool isScanningComplete = false;
   bool needsStorageCard = false;
   String? statusMessage;
   String? completionMessage;
@@ -48,7 +51,9 @@ class ImportController extends ChangeNotifier {
   bool isSelected(String id) => _selectedIds.contains(id);
 
   Future<void> refresh() async {
+    final session = ++_scanSession;
     isLoading = true;
+    isScanningComplete = false;
     statusMessage = null;
     completionMessage = null;
     debugMessage = null;
@@ -63,29 +68,24 @@ class ImportController extends ChangeNotifier {
         needsStorageCard = true;
         statusMessage = '请连接外接储存卡，或选择储存卡目录。';
         debugMessage = await _repository.getImportDebugInfo();
+        isScanningComplete = true;
         return;
       }
-      final scanned = await _repository.scanImportRoot();
       _items
         ..clear()
-        ..addAll(scanned);
-      _syncCurrentItems(scanned);
-      _syncTrash(scanned);
-      _selectedIds.removeWhere(
-        (id) => !_visibleItems.any((item) => item.id == id),
-      );
-      needsStorageCard = scanned.isEmpty;
-      statusMessage = scanned.isEmpty ? '没有找到可导入的照片或视频。' : null;
-      debugMessage = scanned.isEmpty
-          ? await _repository.getImportDebugInfo()
-          : null;
+        ..addAll(const <ExternalImportItem>[]);
+      await _scanImportRootProgressively(session: session, clearTrash: false);
     } catch (_) {
+      if (session != _scanSession) return;
       needsStorageCard = true;
       statusMessage = '读取外接储存卡失败，请重新选择或刷新。';
       debugMessage = await _safeImportDebugInfo();
+      isScanningComplete = true;
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (session == _scanSession) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -98,7 +98,9 @@ class ImportController extends ChangeNotifier {
   }
 
   Future<void> chooseStorageCard({String? rootId}) async {
+    final session = ++_scanSession;
     isLoading = true;
+    isScanningComplete = false;
     statusMessage = null;
     completionMessage = null;
     debugMessage = null;
@@ -110,28 +112,27 @@ class ImportController extends ChangeNotifier {
         needsStorageCard = true;
         statusMessage = '请连接外接储存卡，或选择储存卡目录。';
         debugMessage = await _repository.getImportDebugInfo();
+        isScanningComplete = true;
         return;
       }
-      final scanned = await _repository.scanImportRoot();
       _items
         ..clear()
-        ..addAll(scanned);
+        ..addAll(const <ExternalImportItem>[]);
       _selectedIds.clear();
       _statuses.clear();
       _trashedItems.clear();
-      _syncCurrentItems(scanned);
-      needsStorageCard = scanned.isEmpty;
-      statusMessage = scanned.isEmpty ? '没有找到可导入的照片或视频。' : null;
-      debugMessage = scanned.isEmpty
-          ? await _repository.getImportDebugInfo()
-          : null;
+      await _scanImportRootProgressively(session: session, clearTrash: true);
     } catch (_) {
+      if (session != _scanSession) return;
       needsStorageCard = true;
       statusMessage = '读取外接储存卡失败，请重新选择或刷新。';
       debugMessage = await _safeImportDebugInfo();
+      isScanningComplete = true;
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (session == _scanSession) {
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -142,6 +143,60 @@ class ImportController extends ChangeNotifier {
     }
     completionMessage = null;
     notifyListeners();
+  }
+
+  Future<void> setIncludeRaw(bool value) async {
+    if (includeRaw == value || isImporting) return;
+    includeRaw = value;
+    await refresh();
+  }
+
+  Future<void> _scanImportRootProgressively({
+    required int session,
+    required bool clearTrash,
+  }) async {
+    const pageSize = 60;
+    var offset = 0;
+    var hasMore = true;
+    final seenIds = <String>{};
+    while (hasMore) {
+      final page = await _repository.scanImportRootPage(
+        offset: offset,
+        limit: pageSize,
+        includeRaw: includeRaw,
+      );
+      if (session != _scanSession) return;
+      hasMore = page.hasMore;
+      offset += page.items.length;
+      for (final item in page.items) {
+        if (seenIds.add(item.id)) {
+          _items.add(item);
+        }
+      }
+      _items.sort((a, b) {
+        final left = a.createdAt?.millisecondsSinceEpoch ?? 0;
+        final right = b.createdAt?.millisecondsSinceEpoch ?? 0;
+        return right.compareTo(left);
+      });
+      _syncCurrentItems(_items);
+      if (!clearTrash) {
+        _syncTrash(_items);
+      }
+      _selectedIds.removeWhere(
+        (id) => !_visibleItems.any((item) => item.id == id),
+      );
+      needsStorageCard = false;
+      statusMessage = null;
+      notifyListeners();
+      if (page.items.isEmpty) break;
+    }
+    if (session != _scanSession) return;
+    isScanningComplete = true;
+    needsStorageCard = _items.isEmpty;
+    statusMessage = _items.isEmpty ? '没有找到可导入的照片或视频。' : null;
+    debugMessage = _items.isEmpty
+        ? await _repository.getImportDebugInfo()
+        : null;
   }
 
   void selectAllPending() {
@@ -197,16 +252,23 @@ class ImportController extends ChangeNotifier {
     notifyListeners();
     final ids = Set<String>.from(_selectedIds);
     final byId = {for (final item in _visibleItems) item.id: item};
+    final candidates = ids
+        .map((id) => byId[id])
+        .whereType<ExternalImportItem>()
+        .toList(growable: false);
     final deletedIds = <String>{};
-    for (final id in ids) {
-      final item = byId[id];
-      if (item == null) continue;
-      try {
-        await _repository.deleteExternalMedia(item);
-        deletedIds.add(id);
-      } catch (_) {
-        // Keep the item visible so the user can retry.
+    try {
+      final deletedUris = await _repository.deleteExternalMediaItems(
+        candidates,
+      );
+      final deletedUriSet = deletedUris.toSet();
+      for (final item in candidates) {
+        if (deletedUriSet.contains(item.pathOrUri)) {
+          deletedIds.add(item.id);
+        }
       }
+    } catch (_) {
+      // Keep every selected item visible so the user can retry.
     }
     _items.removeWhere((item) => deletedIds.contains(item.id));
     _trashedItems.removeWhere((item) => deletedIds.contains(item.id));

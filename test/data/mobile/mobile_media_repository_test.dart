@@ -284,6 +284,24 @@ void main() {
                   'imported': true,
                 },
               ];
+            case 'scanImportRootPage':
+              expect((call.arguments as Map)['offset'], 0);
+              expect((call.arguments as Map)['limit'], 60);
+              expect((call.arguments as Map)['includeRaw'], isFalse);
+              return {
+                'items': [
+                  {
+                    'id': 'content://tree/sdcard/document/1',
+                    'type': 'photo',
+                    'displayName': 'IMG_0001.JPG',
+                    'createdAtMillis': 1735689600000,
+                    'sizeBytes': 4096,
+                    'pathOrUri': 'content://tree/sdcard/document/1',
+                    'imported': true,
+                  },
+                ],
+                'hasMore': false,
+              };
             case 'importExternalMedia':
               return 'content://media/external/images/media/99';
             case 'fetchImportFullImageData':
@@ -300,6 +318,7 @@ void main() {
     final roots = await repo.listImportRoots();
     final chosenRoot = await repo.requestImportRoot(rootId: roots.single.id);
     final items = await repo.scanImportRoot();
+    final page = await repo.scanImportRootPage(offset: 0, limit: 60);
     final importedUri = await repo.importExternalMedia(
       items.single,
       albumName: 'RePhoto',
@@ -313,6 +332,8 @@ void main() {
     expect(items.single.type, MediaType.photo);
     expect(items.single.displayName, 'IMG_0001.JPG');
     expect(items.single.imported, isTrue);
+    expect(page.items.single.id, items.single.id);
+    expect(page.hasMore, isFalse);
     expect(importedUri, 'content://media/external/images/media/99');
     expect(fullBytes, [1, 2, 3]);
     expect(calls.map((call) => call.method), [
@@ -320,14 +341,15 @@ void main() {
       'listImportRoots',
       'requestImportRoot',
       'scanImportRoot',
+      'scanImportRootPage',
       'importExternalMedia',
       'fetchImportFullImageData',
       'deleteExternalMedia',
     ]);
     expect((calls[2].arguments as Map)['rootId'], 'sd-1234');
-    expect((calls[4].arguments as Map)['sourceUri'], items.single.pathOrUri);
-    expect((calls[4].arguments as Map)['albumName'], 'RePhoto');
-    expect((calls[6].arguments as Map)['sourceUri'], items.single.pathOrUri);
+    expect((calls[5].arguments as Map)['sourceUri'], items.single.pathOrUri);
+    expect((calls[5].arguments as Map)['albumName'], 'RePhoto');
+    expect((calls[7].arguments as Map)['sourceUri'], items.single.pathOrUri);
   });
 
   test('mobile media repository fetches user albums from platform', () async {

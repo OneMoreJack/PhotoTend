@@ -43,6 +43,8 @@ class MainActivity : FlutterActivity() {
     private var pendingImportRootId: String? = null
     private var pendingDeleteIds: Set<String>? = null
     private var pendingExternalDeleteUri: Uri? = null
+    private var pendingExternalDeleteUris: List<Uri>? = null
+    private var pendingExternalDeletedUris: List<String> = emptyList()
     private var useLegacyPaging = false
     private var legacyMediaSnapshot: List<NativeMediaItem>? = null
     private val locationCachePrefs by lazy {
@@ -193,7 +195,16 @@ class MainActivity : FlutterActivity() {
                         val rootId = call.argument<String>("rootId")
                         requestImportRoot(result, rootId)
                     }
-                    "scanImportRoot" -> runAsync(result) { scanImportRoot().map { it.toMap() } }
+                    "scanImportRoot" -> {
+                        val includeRaw = call.argument<Boolean>("includeRaw") == true
+                        runAsync(result) { scanImportRoot(includeRaw).map { it.toMap() } }
+                    }
+                    "scanImportRootPage" -> {
+                        val includeRaw = call.argument<Boolean>("includeRaw") == true
+                        val offset = call.argument<Int>("offset") ?: 0
+                        val limit = call.argument<Int>("limit") ?: 60
+                        runAsync(result) { scanImportRootPage(includeRaw, offset, limit) }
+                    }
                     "fetchImportPreviewImageData" -> {
                         val pathOrUri = call.argument<String>("pathOrUri")
                         if (pathOrUri.isNullOrBlank()) {
@@ -231,6 +242,14 @@ class MainActivity : FlutterActivity() {
                             deleteExternalMedia(sourceUri, result)
                         }
                     }
+                    "deleteExternalMediaItems" -> {
+                        val sourceUris = call.argument<List<String>>("sourceUris")
+                        if (sourceUris.isNullOrEmpty()) {
+                            result.success(emptyList<String>())
+                        } else {
+                            deleteExternalMediaItems(sourceUris, result)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -242,15 +261,23 @@ class MainActivity : FlutterActivity() {
         if (requestCode == requestCodeDeleteMedia) {
             if (resultCode == android.app.Activity.RESULT_OK) {
                 Log.i(logTag, "User approved deletion")
-                val externalDeleteUri = pendingExternalDeleteUri
-                if (externalDeleteUri != null && mediaUriStillExists(externalDeleteUri)) {
-                    lastImportDebugInfo = "导入诊断：系统确认删除后，媒体仍然存在\nuri=$externalDeleteUri"
+                val externalDeleteUris = pendingExternalDeleteUris
+                    ?: pendingExternalDeleteUri?.let { listOf(it) }
+                    ?: emptyList()
+                val deletedUris = externalDeleteUris
+                    .filterNot { mediaUriStillExists(it) }
+                    .map { it.toString() }
+                val allDeletedUris = pendingExternalDeletedUris + deletedUris
+                if (deletedUris.size != externalDeleteUris.size) {
+                    lastImportDebugInfo =
+                        "导入诊断：系统确认删除后，仍有媒体存在\n" +
+                            "requested=${externalDeleteUris.size} deleted=${deletedUris.size}"
                     pendingDeleteResult?.error("DELETE_FAILED", "Media still exists after delete request", null)
                 } else {
-                    if (externalDeleteUri != null) {
-                        lastImportDebugInfo = "导入诊断：已从储存卡删除媒体\nuri=$externalDeleteUri"
+                    if (externalDeleteUris.isNotEmpty()) {
+                        lastImportDebugInfo = "导入诊断：已从储存卡删除 ${externalDeleteUris.size} 个媒体项目"
                     }
-                    pendingDeleteResult?.success(null)
+                    pendingDeleteResult?.success(allDeletedUris)
                 }
             } else {
                 Log.w(logTag, "User denied deletion")
@@ -259,6 +286,8 @@ class MainActivity : FlutterActivity() {
             pendingDeleteResult = null
             pendingDeleteIds = null
             pendingExternalDeleteUri = null
+            pendingExternalDeleteUris = null
+            pendingExternalDeletedUris = emptyList()
         } else if (requestCode == requestCodeImportRoot) {
             val result = pendingImportRootResult
             val requestedRootId = pendingImportRootId
@@ -290,11 +319,9 @@ class MainActivity : FlutterActivity() {
                 externalImportPrefs.edit().putString(importRootUriKey, value).apply()
                 result?.success(value)
             } else if (resultCode == android.app.Activity.RESULT_OK && !requestedRootId.isNullOrBlank()) {
-                val value = "volume://$requestedRootId"
                 lastImportDebugInfo =
-                    "导入诊断：储存卡授权成功，没有返回目录 URI\nvolume=$requestedRootId"
-                externalImportPrefs.edit().putString(importRootUriKey, value).apply()
-                result?.success(value)
+                    "导入诊断：系统没有返回可读取的储存卡目录，请改用手动授权位置选择储存卡根目录。\nvolume=$requestedRootId"
+                result?.success(null)
             } else {
                 lastImportDebugInfo = "导入诊断：用户取消或系统未返回授权位置。"
                 result?.success(null)
@@ -908,11 +935,9 @@ class MainActivity : FlutterActivity() {
         }
         if (value.startsWith("volume://")) {
             val volumeName = value.removePrefix("volume://")
-            if (isImportVolumeMounted(volumeName)) {
-                return value
-            }
             externalImportPrefs.edit().remove(importRootUriKey).apply()
-            lastImportDebugInfo = "导入诊断：储存卡未连接或未挂载\nvolume=$volumeName"
+            lastImportDebugInfo =
+                "导入诊断：需要重新授权储存卡根目录\nvolume=$volumeName"
             return null
         }
         val uri = Uri.parse(value)
@@ -993,25 +1018,6 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun buildImportRootPickerIntent(rootId: String? = null): Intent {
-        if (!rootId.isNullOrBlank() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            try {
-                val storageManager = getSystemService(StorageManager::class.java)
-                val selected = storageManager.storageVolumes
-                    .filter { volume ->
-                        volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED
-                    }
-                    .firstOrNull { volume ->
-                        volumeMatchesImportRoot(volume, rootId)
-                    }
-                @Suppress("DEPRECATION")
-                val directAccessIntent = selected?.createAccessIntent(null)
-                if (directAccessIntent != null) {
-                    return directAccessIntent
-                }
-            } catch (error: Exception) {
-                Log.w(logTag, "Unable to build direct storage access intent", error)
-            }
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val storageManager = getSystemService(StorageManager::class.java)
@@ -1064,11 +1070,11 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun scanImportRoot(): List<NativeExternalImportItem> {
+    private fun scanImportRoot(includeRaw: Boolean = false): List<NativeExternalImportItem> {
         val root = readSavedImportRoot() ?: return emptyList()
         if (root.startsWith("volume://")) {
             val volumeName = root.removePrefix("volume://")
-            val items = scanMediaStoreImportVolume(volumeName)
+            val items = scanMediaStoreImportVolume(volumeName, includeRaw)
             return items
         }
         val items = mutableListOf<NativeExternalImportItem>()
@@ -1082,15 +1088,15 @@ class MainActivity : FlutterActivity() {
             when {
                 DocumentsContract.isTreeUri(rootUri) -> {
                     val rootDocumentId = DocumentsContract.getTreeDocumentId(rootUri)
-                    scanDocumentTree(rootUri, rootDocumentId, items)
+                    scanDocumentTree(rootUri, rootDocumentId, items, includeRaw)
                 }
                 DocumentsContract.isDocumentUri(this, rootUri) -> {
                     val rootDocumentId = DocumentsContract.getDocumentId(rootUri)
-                    scanDocumentSubtree(rootUri.authority ?: return emptyList(), rootDocumentId, items)
+                    scanDocumentSubtree(rootUri.authority ?: return emptyList(), rootDocumentId, items, includeRaw)
                 }
                 DocumentsContract.isRootUri(this, rootUri) -> {
                     val rootDocumentId = "${DocumentsContract.getRootId(rootUri)}:"
-                    scanDocumentSubtree(rootUri.authority ?: return emptyList(), rootDocumentId, items)
+                    scanDocumentSubtree(rootUri.authority ?: return emptyList(), rootDocumentId, items, includeRaw)
                 }
                 else -> {
                     Log.w(logTag, "Unsupported import root uri: $rootUri")
@@ -1105,19 +1111,88 @@ class MainActivity : FlutterActivity() {
                     "${error.javaClass.simpleName}: ${error.message}"
             return emptyList()
         }
-        if (items.isEmpty()) {
-            val volumeName = importVolumeNameFromDocumentUri(rootUri)
-            if (!volumeName.isNullOrBlank()) {
-                val fallbackItems = scanMediaStoreImportVolume(volumeName)
-                lastImportDebugInfo =
-                    "导入诊断：授权目录为空，已回退到储存卡媒体索引，找到 ${fallbackItems.size} 个可导入项目\n" +
-                        "$uriInfo\nvolume=$volumeName"
-                return fallbackItems
-            }
+        val volumeName = importVolumeNameFromDocumentUri(rootUri)
+        if (!volumeName.isNullOrBlank()) {
+            val volumeItems = scanMediaStoreImportVolume(volumeName, includeRaw)
+            val mergedItems = mergeImportItems(items, volumeItems)
+                .sortedByDescending { it.createdAtMillis }
+            lastImportDebugInfo =
+                "导入诊断：授权目录与储存卡索引合并完成，找到 ${mergedItems.size} 个可导入项目\n" +
+                    "$uriInfo\nvolume=$volumeName dir=${items.size} volumeItems=${volumeItems.size}"
+            return mergedItems
         }
         Log.i(logTag, "scanImportRoot found ${items.size} importable items")
         lastImportDebugInfo = "导入诊断：扫描完成，找到 ${items.size} 个可导入项目\n$uriInfo"
         return items.sortedByDescending { it.createdAtMillis }
+    }
+
+    private fun scanImportRootPage(
+        includeRaw: Boolean = false,
+        offset: Int,
+        limit: Int,
+    ): Map<String, Any?> {
+        val safeOffset = offset.coerceAtLeast(0)
+        val safeLimit = limit.coerceIn(1, 200)
+        val maxItems = safeOffset + safeLimit + 1
+        val root = readSavedImportRoot() ?: return mapOf(
+            "items" to emptyList<Map<String, Any?>>(),
+            "hasMore" to false,
+        )
+        val items = mutableListOf<NativeExternalImportItem>()
+        if (root.startsWith("volume://")) {
+            val volumeName = root.removePrefix("volume://")
+            items.addAll(scanMediaStoreImportVolume(volumeName, includeRaw))
+        } else {
+            val rootUri = Uri.parse(root)
+            try {
+                when {
+                    DocumentsContract.isTreeUri(rootUri) -> {
+                        val rootDocumentId = DocumentsContract.getTreeDocumentId(rootUri)
+                        scanDocumentTreeLimited(rootUri, rootDocumentId, items, includeRaw, maxItems)
+                    }
+                    DocumentsContract.isDocumentUri(this, rootUri) -> {
+                        val rootDocumentId = DocumentsContract.getDocumentId(rootUri)
+                        scanDocumentSubtreeLimited(
+                            rootUri.authority ?: return mapOf("items" to emptyList<Map<String, Any?>>(), "hasMore" to false),
+                            rootDocumentId,
+                            items,
+                            includeRaw,
+                            maxItems,
+                        )
+                    }
+                    DocumentsContract.isRootUri(this, rootUri) -> {
+                        val rootDocumentId = "${DocumentsContract.getRootId(rootUri)}:"
+                        scanDocumentSubtreeLimited(
+                            rootUri.authority ?: return mapOf("items" to emptyList<Map<String, Any?>>(), "hasMore" to false),
+                            rootDocumentId,
+                            items,
+                            includeRaw,
+                            maxItems,
+                        )
+                    }
+                    else -> {
+                        lastImportDebugInfo = "导入诊断：不支持的授权 URI\nuri=$rootUri"
+                    }
+                }
+            } catch (error: Exception) {
+                Log.w(logTag, "scanImportRootPage failed for uri=$rootUri", error)
+                lastImportDebugInfo =
+                    "导入诊断：分页扫描失败\nuri=$rootUri\n" +
+                        "${error.javaClass.simpleName}: ${error.message}"
+            }
+        }
+        val merged = mergeImportItems(items, emptyList())
+            .sortedByDescending { it.createdAtMillis }
+        val end = (safeOffset + safeLimit).coerceAtMost(merged.size)
+        val pageItems = if (safeOffset >= merged.size) {
+            emptyList()
+        } else {
+            merged.subList(safeOffset, end)
+        }
+        return mapOf(
+            "items" to pageItems.map { it.toMap() },
+            "hasMore" to (merged.size > end),
+        )
     }
 
     private fun importVolumeNameFromDocumentUri(uri: Uri): String? {
@@ -1159,7 +1234,10 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun scanMediaStoreImportVolume(volumeName: String): List<NativeExternalImportItem> {
+    private fun scanMediaStoreImportVolume(
+        volumeName: String,
+        includeRaw: Boolean = false,
+    ): List<NativeExternalImportItem> {
         if (!isImportVolumeMounted(volumeName)) {
             externalImportPrefs.edit().remove(importRootUriKey).apply()
             lastImportDebugInfo =
@@ -1171,15 +1249,17 @@ class MainActivity : FlutterActivity() {
             baseUri = importMediaCollectionUri(volumeName, "photo"),
             type = "photo",
             includeDateTaken = true,
+            includeRaw = includeRaw,
         )
         val videoItems = scanMediaStoreImportCollection(
             volumeName = volumeName,
             baseUri = importMediaCollectionUri(volumeName, "video"),
             type = "video",
             includeDateTaken = false,
+            includeRaw = includeRaw,
         )
-        val filesItems = scanMediaStoreFilesImportVolume(volumeName)
-        val fileSystemItems = scanFileSystemImportVolume(volumeName)
+        val filesItems = scanMediaStoreFilesImportVolume(volumeName, includeRaw)
+        val fileSystemItems = scanFileSystemImportVolume(volumeName, includeRaw)
         val items = mergeImportItems(photoItems + videoItems, filesItems + fileSystemItems)
             .sortedByDescending { it.createdAtMillis }
         lastImportDebugInfo =
@@ -1189,7 +1269,10 @@ class MainActivity : FlutterActivity() {
         return items
     }
 
-    private fun scanMediaStoreFilesImportVolume(volumeName: String): List<NativeExternalImportItem> {
+    private fun scanMediaStoreFilesImportVolume(
+        volumeName: String,
+        includeRaw: Boolean = false,
+    ): List<NativeExternalImportItem> {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return emptyList()
         val baseUri = MediaStore.Files.getContentUri(volumeName)
         val projection = arrayOf(
@@ -1234,9 +1317,9 @@ class MainActivity : FlutterActivity() {
                     val mediaType = when (readLong(cursor, mediaTypeColumn)?.toInt()) {
                         MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO -> "video"
                         MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE -> "photo"
-                        else -> externalMediaType(displayName, mimeType)
+                        else -> externalMediaType(displayName, mimeType, includeRaw)
                     } ?: continue
-                    if (externalMediaType(displayName, mimeType) != mediaType) continue
+                    if (externalMediaType(displayName, mimeType, includeRaw) != mediaType) continue
                     val dateAddedSeconds = readLong(cursor, dateAddedColumn)
                     val modifiedSeconds = readLong(cursor, modifiedColumn)
                     val createdAtMillis = when {
@@ -1267,7 +1350,10 @@ class MainActivity : FlutterActivity() {
         return items
     }
 
-    private fun scanFileSystemImportVolume(volumeName: String): List<NativeExternalImportItem> {
+    private fun scanFileSystemImportVolume(
+        volumeName: String,
+        includeRaw: Boolean = false,
+    ): List<NativeExternalImportItem> {
         val volumeDirectory = importVolumeDirectory(volumeName) ?: return emptyList()
         if (!volumeDirectory.canRead()) return emptyList()
         val preferredRoots = listOf("DCIM", "Pictures", "Movies")
@@ -1282,7 +1368,7 @@ class MainActivity : FlutterActivity() {
                 .filter { file -> file.isFile && file.canRead() }
                 .forEach { file ->
                     val mimeType = mimeTypeFromName(file.name) ?: ""
-                    val type = externalMediaType(file.name, mimeType) ?: return@forEach
+                    val type = externalMediaType(file.name, mimeType, includeRaw) ?: return@forEach
                     val modifiedAtMillis = file.lastModified().takeIf { it > 0L } ?: 0L
                     val sizeBytes = file.length().takeIf { it >= 0L }
                     val uri = Uri.fromFile(file).toString()
@@ -1358,6 +1444,7 @@ class MainActivity : FlutterActivity() {
         baseUri: Uri,
         type: String,
         includeDateTaken: Boolean,
+        includeRaw: Boolean = false,
     ): List<NativeExternalImportItem> {
         val dateTakenColumnName = "datetaken"
         val dateAddedColumnName = "date_added"
@@ -1392,7 +1479,7 @@ class MainActivity : FlutterActivity() {
                     val rowId = cursor.getLong(idColumn)
                     val displayName = readString(cursor, nameColumn) ?: "$rowId"
                     val mimeType = readString(cursor, mimeColumn) ?: mimeTypeFromName(displayName) ?: ""
-                    if (externalMediaType(displayName, mimeType) != type) continue
+                    if (externalMediaType(displayName, mimeType, includeRaw) != type) continue
                     val dateTakenMillis = readLong(cursor, dateTakenColumn)
                     val dateAddedSeconds = readLong(cursor, dateAddedColumn)
                     val modifiedSeconds = readLong(cursor, modifiedColumn)
@@ -1435,12 +1522,14 @@ class MainActivity : FlutterActivity() {
         authority: String,
         documentId: String,
         items: MutableList<NativeExternalImportItem>,
+        includeRaw: Boolean = false,
     ) {
         scanDocumentChildren(
             childrenUri = DocumentsContract.buildChildDocumentsUri(authority, documentId),
             documentUriFor = { childId -> DocumentsContract.buildDocumentUri(authority, childId) },
-            recurseInto = { childId -> scanDocumentSubtree(authority, childId, items) },
+            recurseInto = { childId -> scanDocumentSubtree(authority, childId, items, includeRaw) },
             items = items,
+            includeRaw = includeRaw,
         )
     }
 
@@ -1448,13 +1537,135 @@ class MainActivity : FlutterActivity() {
         treeUri: Uri,
         documentId: String,
         items: MutableList<NativeExternalImportItem>,
+        includeRaw: Boolean = false,
     ) {
         scanDocumentChildren(
             childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId),
             documentUriFor = { childId -> DocumentsContract.buildDocumentUriUsingTree(treeUri, childId) },
-            recurseInto = { childId -> scanDocumentTree(treeUri, childId, items) },
+            recurseInto = { childId -> scanDocumentTree(treeUri, childId, items, includeRaw) },
             items = items,
+            includeRaw = includeRaw,
         )
+    }
+
+    private fun scanDocumentSubtreeLimited(
+        authority: String,
+        documentId: String,
+        items: MutableList<NativeExternalImportItem>,
+        includeRaw: Boolean = false,
+        maxItems: Int,
+    ): Boolean {
+        if (items.size >= maxItems) return true
+        return scanDocumentChildrenLimited(
+            childrenUri = DocumentsContract.buildChildDocumentsUri(authority, documentId),
+            documentUriFor = { childId -> DocumentsContract.buildDocumentUri(authority, childId) },
+            recurseInto = { childId ->
+                scanDocumentSubtreeLimited(authority, childId, items, includeRaw, maxItems)
+            },
+            items = items,
+            includeRaw = includeRaw,
+            maxItems = maxItems,
+        )
+    }
+
+    private fun scanDocumentTreeLimited(
+        treeUri: Uri,
+        documentId: String,
+        items: MutableList<NativeExternalImportItem>,
+        includeRaw: Boolean = false,
+        maxItems: Int,
+    ): Boolean {
+        if (items.size >= maxItems) return true
+        return scanDocumentChildrenLimited(
+            childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId),
+            documentUriFor = { childId -> DocumentsContract.buildDocumentUriUsingTree(treeUri, childId) },
+            recurseInto = { childId ->
+                scanDocumentTreeLimited(treeUri, childId, items, includeRaw, maxItems)
+            },
+            items = items,
+            includeRaw = includeRaw,
+            maxItems = maxItems,
+        )
+    }
+
+    private fun scanDocumentChildrenLimited(
+        childrenUri: Uri,
+        documentUriFor: (String) -> Uri,
+        recurseInto: (String) -> Boolean,
+        items: MutableList<NativeExternalImportItem>,
+        includeRaw: Boolean = false,
+        maxItems: Int,
+    ): Boolean {
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+            DocumentsContract.Document.COLUMN_SIZE,
+        )
+        val children = mutableListOf<NativeDocumentChild>()
+        contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val mimeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val modifiedColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+            val sizeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            while (cursor.moveToNext()) {
+                val childId = readString(cursor, idColumn) ?: continue
+                val mimeType = readString(cursor, mimeColumn) ?: ""
+                val name = readString(cursor, nameColumn) ?: childId.substringAfterLast('/')
+                children.add(
+                    NativeDocumentChild(
+                        id = childId,
+                        name = name,
+                        mimeType = mimeType,
+                        modifiedAtMillis = readLong(cursor, modifiedColumn) ?: 0L,
+                        sizeBytes = readLong(cursor, sizeColumn),
+                        isDirectory = mimeType == DocumentsContract.Document.MIME_TYPE_DIR,
+                    )
+                )
+            }
+        }
+
+        val orderedChildren = children.sortedWith(
+            compareBy<NativeDocumentChild> { if (it.isDirectory) 0 else 1 }
+                .thenBy { if (it.isDirectory) importDirectoryPriority(it.name) else 0 }
+                .thenByDescending { if (it.isDirectory) 0L else it.modifiedAtMillis }
+                .thenBy { it.name.lowercase(Locale.US) }
+        )
+        for (child in orderedChildren) {
+            if (items.size >= maxItems) return true
+            if (child.isDirectory) {
+                if (recurseInto(child.id)) return true
+                continue
+            }
+            val mediaType = externalMediaType(child.name, child.mimeType, includeRaw) ?: continue
+            val documentUri = documentUriFor(child.id)
+            items.add(
+                NativeExternalImportItem(
+                    id = documentUri.toString(),
+                    type = mediaType,
+                    displayName = child.name,
+                    createdAtMillis = child.modifiedAtMillis,
+                    sizeBytes = child.sizeBytes,
+                    pathOrUri = documentUri.toString(),
+                    imported = isPreviouslyImported(child.name, child.sizeBytes, child.modifiedAtMillis),
+                )
+            )
+        }
+        return items.size >= maxItems
+    }
+
+    private fun importDirectoryPriority(name: String): Int {
+        val lower = name.lowercase(Locale.US)
+        return when {
+            lower == "dcim" -> 0
+            lower.contains("nikon") -> 1
+            lower == "pictures" -> 2
+            lower == "movies" -> 3
+            lower == "android" -> 99
+            else -> 10
+        }
     }
 
     private fun scanDocumentChildren(
@@ -1462,6 +1673,7 @@ class MainActivity : FlutterActivity() {
         documentUriFor: (String) -> Uri,
         recurseInto: (String) -> Unit,
         items: MutableList<NativeExternalImportItem>,
+        includeRaw: Boolean = false,
     ) {
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,
@@ -1484,7 +1696,7 @@ class MainActivity : FlutterActivity() {
                     continue
                 }
                 val name = readString(cursor, nameColumn) ?: childId.substringAfterLast('/')
-                val mediaType = externalMediaType(name, mimeType) ?: continue
+                val mediaType = externalMediaType(name, mimeType, includeRaw) ?: continue
                 val documentUri = documentUriFor(childId)
                 items.add(
                     NativeExternalImportItem(
@@ -1501,7 +1713,14 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun externalMediaType(displayName: String, mimeType: String): String? {
+    private fun externalMediaType(
+        displayName: String,
+        mimeType: String,
+        includeRaw: Boolean = false,
+    ): String? {
+        val rawImage = isRawImage(displayName, mimeType)
+        if (rawImage && !includeRaw) return null
+        if (rawImage) return "photo"
         if (mimeType.startsWith("image/")) return "photo"
         if (mimeType.startsWith("video/")) return "video"
         val lower = displayName.lowercase(Locale.US)
@@ -1511,7 +1730,18 @@ class MainActivity : FlutterActivity() {
                 lower.endsWith(".png") ||
                 lower.endsWith(".heic") ||
                 lower.endsWith(".heif") ||
-                lower.endsWith(".webp") -> "photo"
+                lower.endsWith(".webp") ||
+                lower.endsWith(".dng") ||
+                lower.endsWith(".nef") ||
+                lower.endsWith(".nrw") ||
+                lower.endsWith(".cr2") ||
+                lower.endsWith(".cr3") ||
+                lower.endsWith(".arw") ||
+                lower.endsWith(".rw2") ||
+                lower.endsWith(".orf") ||
+                lower.endsWith(".raf") ||
+                lower.endsWith(".pef") ||
+                lower.endsWith(".srw") -> "photo"
             lower.endsWith(".mp4") ||
                 lower.endsWith(".mov") ||
                 lower.endsWith(".m4v") ||
@@ -1519,6 +1749,13 @@ class MainActivity : FlutterActivity() {
                 lower.endsWith(".mkv") -> "video"
             else -> null
         }
+    }
+
+    private fun isRawImage(displayName: String, mimeType: String): Boolean {
+        if (mimeType.startsWith("image/x-") && rawImageMimeTypeFromName(displayName) != null) {
+            return true
+        }
+        return rawImageMimeTypeFromName(displayName) != null
     }
 
     private fun fetchExternalPreviewImageData(pathOrUri: String): ByteArray? {
@@ -1557,20 +1794,49 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun deleteExternalMedia(sourceUriValue: String, result: MethodChannel.Result) {
-        val sourceUri = Uri.parse(sourceUriValue)
-        if (sourceUri.scheme == "content" &&
-            sourceUri.authority == MediaStore.AUTHORITY &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-        ) {
-            if (pendingDeleteResult != null) {
-                result.error("BUSY", "A delete request is already pending", null)
+        deleteExternalMediaItems(listOf(sourceUriValue), result)
+    }
+
+    private fun deleteExternalMediaItems(sourceUriValues: List<String>, result: MethodChannel.Result) {
+        val sourceUris = sourceUriValues
+            .mapNotNull { value -> value.takeUnless { it.isBlank() }?.let(Uri::parse) }
+        if (sourceUris.isEmpty()) {
+            result.success(emptyList<String>())
+            return
+        }
+        val mediaStoreUris = sourceUris.filter { uri ->
+            uri.scheme == "content" &&
+                uri.authority == MediaStore.AUTHORITY &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+        }
+        if (mediaStoreUris.isNotEmpty() && pendingDeleteResult != null) {
+            result.error("BUSY", "A delete request is already pending", null)
+            return
+        }
+        val directUris = sourceUris.filterNot { uri -> mediaStoreUris.contains(uri) }
+        val deletedDirectUris = mutableListOf<String>()
+        if (directUris.isNotEmpty()) {
+            try {
+                for (uri in directUris) {
+                    deleteExternalMediaDirect(uri)
+                    deletedDirectUris.add(uri.toString())
+                }
+            } catch (error: Exception) {
+                lastImportDebugInfo =
+                    "导入诊断：批量删除失败\n" +
+                        "${error.javaClass.simpleName}: ${error.message}"
+                result.error("DELETE_FAILED", error.message ?: "Unable to delete media", null)
                 return
             }
+        }
+        if (mediaStoreUris.isNotEmpty()) {
             try {
-                val pendingIntent = MediaStore.createDeleteRequest(contentResolver, listOf(sourceUri))
+                val pendingIntent = MediaStore.createDeleteRequest(contentResolver, mediaStoreUris)
                 pendingDeleteResult = result
-                pendingExternalDeleteUri = sourceUri
-                lastImportDebugInfo = "导入诊断：已发起系统删除授权\nuri=$sourceUri"
+                pendingExternalDeleteUri = mediaStoreUris.singleOrNull()
+                pendingExternalDeleteUris = mediaStoreUris
+                pendingExternalDeletedUris = deletedDirectUris
+                lastImportDebugInfo = "导入诊断：已发起系统批量删除授权\ncount=${mediaStoreUris.size}"
                 @Suppress("DEPRECATION")
                 startIntentSenderForResult(
                     pendingIntent.intentSender,
@@ -1584,17 +1850,16 @@ class MainActivity : FlutterActivity() {
                 Log.w(logTag, "MediaStore delete request failed", error)
                 pendingDeleteResult = null
                 pendingExternalDeleteUri = null
+                pendingExternalDeleteUris = null
+                pendingExternalDeletedUris = emptyList()
                 lastImportDebugInfo =
-                    "导入诊断：系统删除授权创建失败\nuri=$sourceUri\n" +
+                    "导入诊断：系统删除授权创建失败\ncount=${mediaStoreUris.size}\n" +
                         "${error.javaClass.simpleName}: ${error.message}"
                 result.error("DELETE_FAILED", error.message ?: "Unable to delete media", null)
             }
             return
         }
-        runAsync(result) {
-            deleteExternalMediaDirect(sourceUri)
-            null
-        }
+        result.success(deletedDirectUris)
     }
 
     private fun deleteExternalMediaDirect(sourceUri: Uri) {
@@ -1706,6 +1971,32 @@ class MainActivity : FlutterActivity() {
             ?: displayName.substringAfterLast('.', missingDelimiterValue = "")
         if (extension.isBlank()) return null
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase(Locale.US))
+            ?: rawImageMimeTypeFromExtension(extension)
+    }
+
+    private fun rawImageMimeTypeFromName(displayName: String): String? {
+        val extension = MimeTypeMap.getFileExtensionFromUrl(displayName)
+            .takeUnless { it.isNullOrBlank() }
+            ?: displayName.substringAfterLast('.', missingDelimiterValue = "")
+        if (extension.isBlank()) return null
+        return rawImageMimeTypeFromExtension(extension)
+    }
+
+    private fun rawImageMimeTypeFromExtension(extension: String): String? {
+        return when (extension.lowercase(Locale.US)) {
+            "dng" -> "image/x-adobe-dng"
+            "nef" -> "image/x-nikon-nef"
+            "nrw" -> "image/x-nikon-nrw"
+            "cr2" -> "image/x-canon-cr2"
+            "cr3" -> "image/x-canon-cr3"
+            "arw" -> "image/x-sony-arw"
+            "rw2" -> "image/x-panasonic-rw2"
+            "orf" -> "image/x-olympus-orf"
+            "raf" -> "image/x-fuji-raf"
+            "pef" -> "image/x-pentax-pef"
+            "srw" -> "image/x-samsung-srw"
+            else -> null
+        }
     }
 
     private fun sanitizeDisplayName(displayName: String, mediaType: String): String {
@@ -1948,4 +2239,13 @@ class MainActivity : FlutterActivity() {
             )
         }
     }
+
+    private data class NativeDocumentChild(
+        val id: String,
+        val name: String,
+        val mimeType: String,
+        val modifiedAtMillis: Long,
+        val sizeBytes: Long?,
+        val isDirectory: Boolean,
+    )
 }

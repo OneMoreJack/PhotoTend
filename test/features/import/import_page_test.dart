@@ -18,6 +18,14 @@ void main() {
         createdAt: DateTime(2026, 5, 20),
         sizeBytes: 1024,
       ),
+      ExternalImportItem(
+        id: 'raw',
+        type: MediaType.photo,
+        displayName: 'a.nef',
+        pathOrUri: 'content://doc/raw',
+        createdAt: DateTime(2026, 5, 20),
+        sizeBytes: 2048,
+      ),
     ]);
     final controller = ImportController(repository: repo);
 
@@ -41,5 +49,12 @@ void main() {
 
     expect(find.text('重选储存卡'), findsOneWidget);
     expect(find.text('刷新'), findsOneWidget);
+    expect(find.text('加载 RAW 文件'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('import-toggle-raw-menu-item')));
+    await tester.pumpAndSettle();
+
+    expect(controller.includeRaw, isTrue);
+    expect(find.text('2 个项目 · 3.0 KB'), findsOneWidget);
   });
 }

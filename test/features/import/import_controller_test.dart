@@ -114,6 +114,66 @@ void main() {
     },
   );
 
+  test('controller excludes raw files until includeRaw is enabled', () async {
+    final repo = FakeExternalImportRepository([
+      ExternalImportItem(
+        id: 'jpg',
+        type: MediaType.photo,
+        displayName: 'DSC_0001.JPG',
+        pathOrUri: 'content://doc/jpg',
+      ),
+      ExternalImportItem(
+        id: 'raw',
+        type: MediaType.photo,
+        displayName: 'DSC_0001.NEF',
+        pathOrUri: 'content://doc/raw',
+      ),
+    ]);
+    final controller = ImportController(repository: repo);
+
+    await controller.refresh();
+
+    expect(controller.includeRaw, isFalse);
+    expect(controller.items.map((item) => item.id), ['jpg']);
+
+    await controller.setIncludeRaw(true);
+
+    expect(controller.includeRaw, isTrue);
+    expect(controller.items.map((item) => item.id), ['jpg', 'raw']);
+  });
+
+  test(
+    'controller publishes import items page by page while scanning',
+    () async {
+      final repo = PagingFakeExternalImportRepository(
+        List.generate(
+          61,
+          (index) => ExternalImportItem(
+            id: 'item-$index',
+            type: MediaType.photo,
+            displayName: 'item-$index.jpg',
+            pathOrUri: 'content://doc/item-$index',
+          ),
+        ),
+      );
+      final controller = ImportController(repository: repo);
+      final visibleCounts = <int>[];
+      final scanningStates = <bool>[];
+      controller.addListener(() {
+        visibleCounts.add(controller.items.length);
+        scanningStates.add(controller.isScanningComplete);
+      });
+
+      await controller.refresh();
+
+      expect(repo.requestedOffsets, [0, 60]);
+      expect(visibleCounts, contains(60));
+      expect(controller.items.length, 61);
+      expect(controller.isScanningComplete, isTrue);
+      expect(scanningStates.last, isTrue);
+    },
+  );
+
   test('controller toggles a pending selection group', () async {
     final repo = FakeExternalImportRepository([
       ExternalImportItem(
@@ -177,6 +237,37 @@ void main() {
       expect(controller.selectedIds, isEmpty);
       expect(repo.deletedIds, ['a']);
       expect(controller.completionMessage, '已从储存卡删除 1 个项目');
+    },
+  );
+
+  test(
+    'controller deletes multiple selected import items in one batch',
+    () async {
+      final repo = FakeExternalImportRepository([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+        ExternalImportItem(
+          id: 'b',
+          type: MediaType.photo,
+          displayName: 'b.jpg',
+          pathOrUri: 'content://doc/b',
+        ),
+      ]);
+      final controller = ImportController(repository: repo);
+
+      await controller.refresh();
+      controller.toggleSelection('a');
+      controller.toggleSelection('b');
+      await controller.deleteSelectedItems();
+
+      expect(controller.items, isEmpty);
+      expect(controller.selectedIds, isEmpty);
+      expect(repo.deletedIds, ['a', 'b']);
+      expect(controller.completionMessage, '已从储存卡删除 2 个项目');
     },
   );
 
@@ -246,4 +337,25 @@ void main() {
       expect(controller.importTotalCount, 2);
     },
   );
+}
+
+class PagingFakeExternalImportRepository extends FakeExternalImportRepository {
+  PagingFakeExternalImportRepository(super.items);
+
+  final List<int> requestedOffsets = <int>[];
+
+  @override
+  Future<ExternalImportScanPage> scanImportRootPage({
+    required int offset,
+    required int limit,
+    bool includeRaw = false,
+  }) async {
+    requestedOffsets.add(offset);
+    await Future<void>.delayed(Duration.zero);
+    return super.scanImportRootPage(
+      offset: offset,
+      limit: limit,
+      includeRaw: includeRaw,
+    );
+  }
 }

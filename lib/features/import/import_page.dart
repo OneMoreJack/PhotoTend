@@ -123,12 +123,16 @@ class _ImportPageState extends State<ImportPage> {
                 totalSizeBytes: _controller.totalSizeBytes,
                 selectedCount: _controller.selectedCount,
                 selectedSizeBytes: _controller.selectedSizeBytes,
+                statsLoading: !_controller.isScanningComplete,
                 isBusy: _controller.isImporting || _controller.isLoading,
                 importCompletedCount: _controller.importCompletedCount,
                 importTotalCount: _controller.importTotalCount,
                 importProgress: _controller.importProgress,
+                includeRaw: _controller.includeRaw,
                 onChoose: _showStorageCardPicker,
                 onRefresh: _controller.refresh,
+                onToggleRaw: (value) =>
+                    unawaited(_controller.setIncludeRaw(value)),
                 onMoveToTrash: _controller.selectedCount == 0
                     ? null
                     : _confirmDeleteSelectedItems,
@@ -1143,12 +1147,15 @@ class _ImportBottomBar extends StatelessWidget {
     required this.totalSizeBytes,
     required this.selectedCount,
     required this.selectedSizeBytes,
+    required this.statsLoading,
     required this.isBusy,
     required this.importCompletedCount,
     required this.importTotalCount,
     required this.importProgress,
+    required this.includeRaw,
     required this.onChoose,
     required this.onRefresh,
+    required this.onToggleRaw,
     required this.onMoveToTrash,
     required this.onImport,
   });
@@ -1157,12 +1164,15 @@ class _ImportBottomBar extends StatelessWidget {
   final int totalSizeBytes;
   final int selectedCount;
   final int selectedSizeBytes;
+  final bool statsLoading;
   final bool isBusy;
   final int importCompletedCount;
   final int importTotalCount;
   final double importProgress;
+  final bool includeRaw;
   final VoidCallback onChoose;
   final VoidCallback onRefresh;
+  final ValueChanged<bool> onToggleRaw;
   final VoidCallback? onMoveToTrash;
   final VoidCallback? onImport;
 
@@ -1219,6 +1229,7 @@ class _ImportBottomBar extends StatelessWidget {
                     countText: countText,
                     sizeText: sizeText,
                     hasSelection: hasSelection,
+                    loading: statsLoading,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1234,10 +1245,12 @@ class _ImportBottomBar extends StatelessWidget {
                         onChoose();
                       case _ImportMoreAction.refresh:
                         onRefresh();
+                      case _ImportMoreAction.toggleRaw:
+                        onToggleRaw(!includeRaw);
                     }
                   },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
                       value: _ImportMoreAction.choose,
                       child: ListTile(
                         leading: Icon(Icons.folder_open_rounded),
@@ -1245,13 +1258,19 @@ class _ImportBottomBar extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: _ImportMoreAction.refresh,
                       child: ListTile(
                         leading: Icon(Icons.refresh_rounded),
                         title: Text('刷新'),
                         contentPadding: EdgeInsets.zero,
                       ),
+                    ),
+                    CheckedPopupMenuItem(
+                      key: const Key('import-toggle-raw-menu-item'),
+                      value: _ImportMoreAction.toggleRaw,
+                      checked: includeRaw,
+                      child: const Text('加载 RAW 文件'),
                     ),
                   ],
                 ),
@@ -1320,22 +1339,24 @@ class _ImportBottomBar extends StatelessWidget {
   }
 }
 
-enum _ImportMoreAction { choose, refresh }
+enum _ImportMoreAction { choose, refresh, toggleRaw }
 
 class _ImportBatchSummary extends StatelessWidget {
   const _ImportBatchSummary({
     required this.countText,
     required this.sizeText,
     required this.hasSelection,
+    required this.loading,
   });
 
   final String countText;
   final String? sizeText;
   final bool hasSelection;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
-    final label = hasSelection ? '当前选择' : '待导入';
+    final label = loading ? '正在扫描' : (hasSelection ? '当前选择' : '待导入');
     return Column(
       key: const Key('import-bottom-summary'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1353,7 +1374,9 @@ class _ImportBatchSummary extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          [countText, if (sizeText != null) sizeText].join(' · '),
+          loading
+              ? '统计中…'
+              : [countText, if (sizeText != null) sizeText].join(' · '),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(

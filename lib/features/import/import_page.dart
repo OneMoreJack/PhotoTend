@@ -7,6 +7,7 @@ import 'package:rephoto/data/mobile/external_import_repository.dart';
 import 'package:rephoto/data/mobile/mobile_media_repository.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/features/import/import_controller.dart';
+import 'package:rephoto/theme/huashu_snack_bar.dart';
 import 'package:rephoto/theme/huashu_theme.dart';
 
 const _importBlue = HuashuColors.accent;
@@ -94,9 +95,9 @@ class _ImportPageState extends State<ImportPage> {
     if (message != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(HuashuSnackBars.success(message));
       });
     }
   }
@@ -1179,6 +1180,7 @@ class _ImportBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasSelection = selectedCount > 0;
+    final hasImportTotal = importTotalCount > 0;
     final countText = hasSelection ? '已选 $selectedCount' : '$itemCount 个项目';
     final size = hasSelection ? selectedSizeBytes : totalSizeBytes;
     final sizeText = size > 0 ? _formatBytes(size) : null;
@@ -1199,25 +1201,27 @@ class _ImportBottomBar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isBusy || importTotalCount > 0) ...[
+            if (isBusy || hasImportTotal) ...[
               Row(
                 children: [
                   Expanded(
                     child: LinearProgressIndicator(
-                      value: importTotalCount == 0 ? null : importProgress,
+                      value: hasImportTotal ? importProgress : null,
                       minHeight: 4,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    '$importCompletedCount/$importTotalCount',
-                    style: const TextStyle(
-                      color: _importInk,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                  if (hasImportTotal) ...[
+                    const SizedBox(width: 10),
+                    Text(
+                      '$importCompletedCount/$importTotalCount',
+                      style: const TextStyle(
+                        color: _importInk,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
               const SizedBox(height: 8),

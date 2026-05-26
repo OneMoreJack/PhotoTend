@@ -7,6 +7,7 @@ import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/domain/services/permanent_delete_service.dart';
 import 'package:rephoto/features/media/widgets/video_tile.dart';
 import 'package:rephoto/features/trash/trash_controller.dart';
+import 'package:rephoto/theme/huashu_snack_bar.dart';
 import 'package:rephoto/theme/huashu_theme.dart';
 
 class TrashPageResult {
@@ -278,9 +279,10 @@ class _TrashPageState extends State<TrashPage> {
       (final s, final f) =>
         'Permanently deleted $s item(s), failed $f item(s). Retry from trash.',
     };
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    final snackBar = failed == 0
+        ? HuashuSnackBars.success(message)
+        : SnackBar(content: Text(message));
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   void _closeWithResult() {

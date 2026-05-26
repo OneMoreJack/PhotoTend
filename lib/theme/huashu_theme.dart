@@ -61,8 +61,11 @@ abstract final class HuashuTheme {
         contentTextStyle: const TextStyle(
           color: HuashuColors.surface,
           fontWeight: FontWeight.w700,
+          height: 1.2,
         ),
         behavior: SnackBarBehavior.floating,
+        elevation: 8,
+        insetPadding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       filledButtonTheme: FilledButtonThemeData(

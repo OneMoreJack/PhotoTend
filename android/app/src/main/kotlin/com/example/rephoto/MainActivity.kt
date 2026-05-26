@@ -1660,7 +1660,6 @@ class MainActivity : FlutterActivity() {
         val lower = name.lowercase(Locale.US)
         return when {
             lower == "dcim" -> 0
-            lower.contains("nikon") -> 1
             lower == "pictures" -> 2
             lower == "movies" -> 3
             lower == "android" -> 99

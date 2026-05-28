@@ -265,12 +265,38 @@ class HomeController extends ChangeNotifier {
   }
 
   void onSwipeLeftRandom() {
+    if (_browseMode == BrowseMode.sequential) {
+      final nextId = _pickNextSequentialId();
+      if (nextId == null) {
+        if (_shouldCompleteActiveCollection()) {
+          currentMediaId = null;
+          _markActiveCollectionCompleted();
+          _saveActiveBrowseProgress();
+          notifyListeners();
+        }
+        return;
+      }
+      _moveToSequentialId(nextId);
+      _saveActiveBrowseProgress();
+      notifyListeners();
+      return;
+    }
     _showNext();
     _saveActiveBrowseProgress();
     notifyListeners();
   }
 
   void onSwipeRightPrevious() {
+    if (_browseMode == BrowseMode.sequential) {
+      final previousId = _pickPreviousSequentialId();
+      if (previousId == null) {
+        return;
+      }
+      _moveToSequentialId(previousId);
+      _saveActiveBrowseProgress();
+      notifyListeners();
+      return;
+    }
     final targetIndex = _findPreviousNavigableIndex();
     if (targetIndex == null) {
       return;
@@ -540,6 +566,10 @@ class HomeController extends ChangeNotifier {
         .toList(growable: false);
     final index = availableIds.indexOf(mediaId);
     if (index < 0) {
+      return null;
+    }
+    if (_completedCollectionIds.contains(collectionId) &&
+        index == availableIds.length - 1) {
       return null;
     }
     return BrowseProgress(
@@ -1217,6 +1247,51 @@ class HomeController extends ChangeNotifier {
     }
 
     return null;
+  }
+
+  String? _pickPreviousSequentialId() {
+    final availableIds = _filteredMediaIds
+        .where((id) => !trashIds.contains(id))
+        .toList();
+    if (availableIds.isEmpty) {
+      return null;
+    }
+
+    final targetId = currentMediaId;
+    final currentIndex = targetId != null
+        ? _filteredMediaIds.indexOf(targetId)
+        : _filteredMediaIds.length;
+    if (currentIndex < 0) {
+      return null;
+    }
+
+    final shouldWrap = _activeCollectionQuery?.collectionId == null;
+    final maxSteps = shouldWrap ? _filteredMediaIds.length : currentIndex;
+
+    for (var i = 1; i <= maxSteps; i++) {
+      final previousIndex = shouldWrap
+          ? (currentIndex - i) % _filteredMediaIds.length
+          : currentIndex - i;
+      final candidate = _filteredMediaIds[previousIndex];
+      if (_isNavigableId(candidate)) {
+        _randomPoolService.markConsumed(candidate);
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  void _moveToSequentialId(String id) {
+    _shownHistory.removeRange(_currentHistoryIndex + 1, _shownHistory.length);
+    if (_shownHistory.isEmpty || _shownHistory.last != id) {
+      _shownHistory.add(id);
+    }
+    _currentHistoryIndex = _shownHistory.length - 1;
+    _gestureSessionService.onShown(id);
+    _randomPoolService.markConsumed(id);
+    currentMediaId = id;
+    _queuedNextMediaId = null;
   }
 
   bool _shouldCompleteActiveCollection() {

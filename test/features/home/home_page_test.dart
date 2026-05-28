@@ -431,6 +431,115 @@ void main() {
     expect(size.height, greaterThan(size.width));
   });
 
+  testWidgets('monthly browser resume preview uses compact 1.3x size', (
+    tester,
+  ) async {
+    const mediaChannel = MethodChannelMobileMediaRepository.channel;
+    final portraitBytes = _pngBytes(width: 90, height: 160);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(mediaChannel, (call) async {
+          if (call.method == 'fetchPreviewImageData') {
+            return portraitBytes;
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(mediaChannel, null);
+    });
+
+    final store = InMemoryStateStore();
+    await store.saveBrowseProgress('month-2026-04', 'video');
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'video',
+          type: MediaType.video,
+          createdAt: DateTime(2026, 4, 10),
+          pathOrUri: 'content://video-portrait',
+        ),
+      ],
+      stateStore: store,
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+    controller.applyCollectionQuery(month.query);
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+
+    await _pumpUntilFound(tester, const Key('browse-resume-card'));
+
+    final size = tester.getSize(find.byKey(const Key('browse-resume-card')));
+    expect(size.width, closeTo(109.2, 0.1));
+    expect(size.height, closeTo(171.6, 0.1));
+  });
+
+  testWidgets(
+    'monthly browser resume countdown starts after preview is ready',
+    (tester) async {
+      const mediaChannel = MethodChannelMobileMediaRepository.channel;
+      final previewBytes = _pngBytes(width: 90, height: 160);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(mediaChannel, (call) async {
+            if (call.method == 'fetchPreviewImageData') {
+              await Future<void>.delayed(const Duration(seconds: 2));
+              return previewBytes;
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(mediaChannel, null);
+      });
+
+      final store = InMemoryStateStore();
+      await store.saveBrowseProgress('month-2026-04', 'video');
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'late',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 20),
+          ),
+          MediaItem(
+            id: 'video',
+            type: MediaType.video,
+            createdAt: DateTime(2026, 4, 10),
+            pathOrUri: 'content://video-portrait',
+          ),
+        ],
+        stateStore: store,
+        seed: 1,
+      );
+      final month = controller.monthlyAlbumSummaryEntries.first;
+      controller.applyCollectionQuery(month.query);
+
+      await tester.pumpWidget(
+        MaterialApp(home: MediaBrowserPage(controller: controller)),
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('browse-resume-card')), findsNothing);
+
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const Key('browse-resume-card')), findsNothing);
+
+      await tester.pump(const Duration(seconds: 1));
+      await _pumpUntilFound(tester, const Key('browse-resume-card'));
+      expect(find.byKey(const Key('browse-resume-card')), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('4'), findsOneWidget);
+    },
+  );
+
   testWidgets('tapping recent shortcut opens the matching browser collection', (
     tester,
   ) async {

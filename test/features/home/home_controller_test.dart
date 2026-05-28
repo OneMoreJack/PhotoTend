@@ -349,6 +349,7 @@ void main() {
         initialMediaIds: const ['a', 'b', 'c'],
         seed: 2,
       );
+      controller.toggleBrowseMode();
       final first = controller.currentMediaId!;
 
       controller.onSwipeLeftRandom();
@@ -375,6 +376,7 @@ void main() {
         initialMediaIds: const ['a', 'b', 'c', 'd'],
         seed: 2,
       );
+      controller.toggleBrowseMode();
       final first = controller.currentMediaId!;
 
       controller.onSwipeLeftRandom();
@@ -401,6 +403,7 @@ void main() {
       initialMediaIds: const ['a', 'b', 'c', 'd'],
       seed: 3,
     );
+    controller.toggleBrowseMode();
 
     controller.onSwipeLeftRandom();
     final second = controller.currentMediaId!;
@@ -446,7 +449,7 @@ void main() {
     },
   );
 
-  test('sequential mode advances in list order from current media', () {
+  test('sequential mode uses left for next and right for previous media', () {
     final now = DateTime.now();
     final controller = HomeController(
       initialMediaItems: [
@@ -458,15 +461,38 @@ void main() {
     );
 
     expect(controller.browseMode, BrowseMode.sequential);
+    controller.currentMediaId = 'b';
+
+    controller.onSwipeLeftRandom();
+    expect(controller.currentMediaId, 'c');
+
+    controller.onSwipeRightPrevious();
+    expect(controller.currentMediaId, 'b');
+
+    controller.onSwipeRightPrevious();
+    expect(controller.currentMediaId, 'a');
+
+    controller.onSwipeLeftRandom();
+    expect(controller.currentMediaId, 'b');
+  });
+
+  test('sequential mode wraps outside monthly collections', () {
+    final now = DateTime.now();
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(id: 'a', type: MediaType.photo, createdAt: now),
+        MediaItem(id: 'b', type: MediaType.photo, createdAt: now),
+        MediaItem(id: 'c', type: MediaType.photo, createdAt: now),
+      ],
+      seed: 1,
+    );
+
     controller.currentMediaId = 'a';
 
     controller.onSwipeLeftRandom();
     expect(controller.currentMediaId, 'b');
 
-    controller.onSwipeLeftRandom();
-    expect(controller.currentMediaId, 'c');
-
-    controller.onSwipeLeftRandom();
+    controller.onSwipeRightPrevious();
     expect(controller.currentMediaId, 'a');
   });
 
@@ -498,6 +524,83 @@ void main() {
     expect(controller.currentMediaId, isNull);
     expect(controller.isCollectionCompleted(month.id), isTrue);
   });
+
+  test(
+    'completed monthly collection hides browse progress at last media',
+    () async {
+      final store = InMemoryStateStore();
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'late',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 20),
+          ),
+          MediaItem(
+            id: 'early',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 1),
+          ),
+        ],
+        stateStore: store,
+        seed: 1,
+      );
+      final month = controller.monthlyAlbumSummaryEntries.first;
+
+      controller.applyCollectionQuery(month.query);
+      controller.jumpToMedia('early');
+      await Future<void>.delayed(Duration.zero);
+
+      controller.onSwipeLeftRandom();
+      expect(controller.currentMediaId, isNull);
+      expect(controller.isCollectionCompleted(month.id), isTrue);
+
+      final resume = await controller.loadActiveBrowseProgress();
+      expect(resume, isNull);
+    },
+  );
+
+  test(
+    'completed monthly collection exposes browse progress before last media',
+    () async {
+      final store = InMemoryStateStore();
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'late',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 20),
+          ),
+          MediaItem(
+            id: 'middle',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 10),
+          ),
+          MediaItem(
+            id: 'early',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 1),
+          ),
+        ],
+        stateStore: store,
+        seed: 1,
+      );
+      final month = controller.monthlyAlbumSummaryEntries.first;
+
+      controller.applyCollectionQuery(month.query);
+      controller.jumpToMedia('early');
+      controller.onSwipeLeftRandom();
+      expect(controller.isCollectionCompleted(month.id), isTrue);
+
+      controller.jumpToMedia('middle');
+      await Future<void>.delayed(Duration.zero);
+      controller.applyCollectionQuery(month.query);
+      expect(controller.currentMediaId, 'late');
+
+      final resume = await controller.loadActiveBrowseProgress();
+      expect(resume?.mediaId, 'middle');
+    },
+  );
 
   test(
     'random pool returns null after exhaustion and reset makes items available again',
@@ -979,6 +1082,83 @@ void main() {
       expect(resume?.mediaId, 'middle');
       expect(resume?.displayIndex, 2);
       expect(resume?.totalCount, 3);
+    },
+  );
+
+  test('jumping inside monthly sequential collection uses adjacent media', () {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'middle',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 10),
+        ),
+        MediaItem(
+          id: 'early',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 1),
+        ),
+      ],
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+
+    controller.applyCollectionQuery(month.query);
+    expect(controller.currentMediaId, 'late');
+
+    controller.jumpToMedia('middle');
+    expect(controller.currentMediaId, 'middle');
+
+    controller.onSwipeRightPrevious();
+    expect(controller.currentMediaId, 'late');
+
+    controller.onSwipeLeftRandom();
+    expect(controller.currentMediaId, 'middle');
+
+    controller.onSwipeLeftRandom();
+    expect(controller.currentMediaId, 'early');
+  });
+
+  test(
+    'switching from random to sequential after jump uses adjacent media',
+    () {
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'late',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 20),
+          ),
+          MediaItem(
+            id: 'middle',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 10),
+          ),
+          MediaItem(
+            id: 'early',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 1),
+          ),
+        ],
+        seed: 1,
+      );
+      final month = controller.monthlyAlbumSummaryEntries.first;
+
+      controller.applyCollectionQuery(month.query);
+      controller.toggleBrowseMode();
+      expect(controller.browseMode, BrowseMode.random);
+
+      controller.jumpToMedia('middle');
+      controller.toggleBrowseMode();
+      expect(controller.browseMode, BrowseMode.sequential);
+
+      controller.onSwipeRightPrevious();
+      expect(controller.currentMediaId, 'late');
     },
   );
 }

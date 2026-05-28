@@ -190,11 +190,11 @@ class _BrowseProgressCard extends StatelessWidget {
 
   Size _previewSizeForAspectRatio(double aspectRatio) {
     if (aspectRatio >= 1) {
-      const height = 78.0;
-      return Size((height * aspectRatio).clamp(96.0, 148.0), height);
+      const height = 101.4;
+      return Size((height * aspectRatio).clamp(124.8, 192.4), height);
     }
-    const width = 84.0;
-    return Size(width, (width / aspectRatio).clamp(96.0, 132.0));
+    const width = 109.2;
+    return Size(width, (width / aspectRatio).clamp(124.8, 171.6));
   }
 }
 
@@ -990,10 +990,54 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   }
 
   Widget _buildBrowseProgressPreview(MediaItem item) {
+    unawaited(_ensureMobilePreviewBytes(item));
+    final provider = item.type == MediaType.video
+        ? _buildVideoThumbnailProvider(item)
+        : _buildImageProvider(item.pathOrUri, mediaId: item.id);
+    final content = provider == null
+        ? _buildThumbnailPlaceholder(item, loading: true)
+        : Image(
+            image: provider,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _buildThumbnailPlaceholder(item),
+          );
     return KeyedSubtree(
       key: const Key('browse-resume-preview'),
-      child: _buildThumbnailTile(context, item, false),
+      child: item.type == MediaType.video
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                content,
+                const Center(
+                  child: Icon(
+                    Icons.play_circle_fill_rounded,
+                    color: HuashuColors.surface,
+                    size: 22,
+                  ),
+                ),
+              ],
+            )
+          : content,
     );
+  }
+
+  Future<void> _precacheBrowseProgressPreview(MediaItem item) async {
+    final provider = item.type == MediaType.video
+        ? _buildVideoThumbnailProvider(item)
+        : _buildImageProvider(item.pathOrUri, mediaId: item.id);
+    if (provider == null || !mounted) {
+      return;
+    }
+    try {
+      await precacheImage(
+        provider,
+        context,
+      ).timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // The resume affordance can still show a placeholder if decoding fails.
+    }
   }
 
   Future<double> _resolveBrowseProgressAspectRatio(MediaItem item) async {
@@ -1453,6 +1497,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       return;
     }
     final aspectRatio = await _resolveBrowseProgressAspectRatio(progress.media);
+    await _precacheBrowseProgressPreview(progress.media);
     if (!mounted) {
       return;
     }

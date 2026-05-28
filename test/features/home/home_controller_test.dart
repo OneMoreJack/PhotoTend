@@ -415,6 +415,23 @@ void main() {
     expect(controller.prepareUpcomingMediaForPreload()?.id, third);
   });
 
+  test('sequential preload exposes adjacent previous and next media', () {
+    final now = DateTime.now();
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(id: 'a', type: MediaType.photo, createdAt: now),
+        MediaItem(id: 'b', type: MediaType.photo, createdAt: now),
+        MediaItem(id: 'c', type: MediaType.photo, createdAt: now),
+      ],
+      seed: 1,
+    );
+
+    controller.currentMediaId = 'b';
+
+    expect(controller.preparePreviousMediaForPreload()?.id, 'a');
+    expect(controller.prepareUpcomingMediaForPreload()?.id, 'c');
+  });
+
   test('single-item pool stays visible when swiping next repeatedly', () {
     final controller = HomeController(initialMediaIds: const ['only'], seed: 1);
     expect(controller.currentMediaId, 'only');

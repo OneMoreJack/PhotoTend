@@ -731,30 +731,20 @@ class HomeController extends ChangeNotifier {
 
   List<MediaItem> prepareUpcomingMediaForPreloadQueue({int limit = 1}) {
     final upcomingIds = _peekUpcomingIds(limit: limit);
-    if (upcomingIds.isEmpty) {
-      return const <MediaItem>[];
-    }
-    final mediaById = <String, MediaItem>{
-      for (final item in _allMediaItems) item.id: item,
-    };
-    return upcomingIds
-        .map((id) => mediaById[id])
-        .whereType<MediaItem>()
-        .toList(growable: false);
+    return _mediaItemsForOrderedIds(upcomingIds);
   }
 
   MediaItem? preparePreviousMediaForPreload() {
-    final previousIndex = _findPreviousNavigableIndex();
-    if (previousIndex == null) {
+    final previous = preparePreviousMediaForPreloadQueue(limit: 1);
+    if (previous.isEmpty) {
       return null;
     }
-    final previousId = _shownHistory[previousIndex];
-    for (final item in _allMediaItems) {
-      if (item.id == previousId) {
-        return item;
-      }
-    }
-    return null;
+    return previous.first;
+  }
+
+  List<MediaItem> preparePreviousMediaForPreloadQueue({int limit = 1}) {
+    final previousIds = _peekPreviousIds(limit: limit);
+    return _mediaItemsForOrderedIds(previousIds);
   }
 
   DateTimeRangeValues _effectiveTimeRange() {
@@ -893,6 +883,32 @@ class HomeController extends ChangeNotifier {
     return upcoming;
   }
 
+  List<String> _peekPreviousIds({required int limit}) {
+    if (limit <= 0) {
+      return const <String>[];
+    }
+
+    if (_browseMode == BrowseMode.random) {
+      final previous = <String>[];
+      final currentIndex = currentMediaId == null
+          ? _currentHistoryIndex + 1
+          : _currentHistoryIndex;
+      for (
+        var index = currentIndex - 1;
+        index >= 0 && previous.length < limit;
+        index -= 1
+      ) {
+        final id = _shownHistory[index];
+        if (_isNavigableId(id)) {
+          previous.add(id);
+        }
+      }
+      return previous;
+    }
+
+    return _peekSequentialPreviousIds(limit: limit);
+  }
+
   List<String> _peekSequentialIds({
     required int limit,
     required Set<String> excludedIds,
@@ -906,12 +922,12 @@ class HomeController extends ChangeNotifier {
     final currentIndex = startId != null
         ? _filteredMediaIds.indexOf(startId)
         : -1;
+    final shouldWrap = _activeCollectionQuery?.collectionId == null;
+    final maxSteps = shouldWrap
+        ? _filteredMediaIds.length
+        : _filteredMediaIds.length - currentIndex - 1;
 
-    for (
-      var i = 1;
-      i <= _filteredMediaIds.length && upcoming.length < limit;
-      i += 1
-    ) {
+    for (var i = 1; i <= maxSteps && upcoming.length < limit; i += 1) {
       final nextIndex = (currentIndex + i) % _filteredMediaIds.length;
       final candidate = _filteredMediaIds[nextIndex];
       if (!_isNavigableId(candidate) || !excludedIds.add(candidate)) {
@@ -920,6 +936,49 @@ class HomeController extends ChangeNotifier {
       upcoming.add(candidate);
     }
     return upcoming;
+  }
+
+  List<String> _peekSequentialPreviousIds({required int limit}) {
+    if (limit <= 0 || _filteredMediaIds.isEmpty) {
+      return const <String>[];
+    }
+
+    final previous = <String>[];
+    final targetId = currentMediaId;
+    final currentIndex = targetId != null
+        ? _filteredMediaIds.indexOf(targetId)
+        : _filteredMediaIds.length;
+    if (currentIndex < 0) {
+      return const <String>[];
+    }
+
+    final shouldWrap = _activeCollectionQuery?.collectionId == null;
+    final maxSteps = shouldWrap ? _filteredMediaIds.length : currentIndex;
+    final excluded = <String>{};
+    for (var i = 1; i <= maxSteps && previous.length < limit; i += 1) {
+      final previousIndex = shouldWrap
+          ? (currentIndex - i) % _filteredMediaIds.length
+          : currentIndex - i;
+      final candidate = _filteredMediaIds[previousIndex];
+      if (!_isNavigableId(candidate) || !excluded.add(candidate)) {
+        continue;
+      }
+      previous.add(candidate);
+    }
+    return previous;
+  }
+
+  List<MediaItem> _mediaItemsForOrderedIds(List<String> ids) {
+    if (ids.isEmpty) {
+      return const <MediaItem>[];
+    }
+    final mediaById = <String, MediaItem>{
+      for (final item in _allMediaItems) item.id: item,
+    };
+    return ids
+        .map((id) => mediaById[id])
+        .whereType<MediaItem>()
+        .toList(growable: false);
   }
 
   void _recomputeFilteredIds() {

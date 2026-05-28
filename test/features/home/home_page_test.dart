@@ -1008,6 +1008,61 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   });
 
+  testWidgets('media browser preloads previous and next image previews', (
+    tester,
+  ) async {
+    const mediaChannel = MethodChannelMobileMediaRepository.channel;
+    final requestedPreviewUris = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(mediaChannel, (call) async {
+          if (call.method == 'fetchPreviewImageData') {
+            final args = call.arguments as Map<dynamic, dynamic>;
+            requestedPreviewUris.add(args['pathOrUri'].toString());
+            return Uint8List.fromList(transparentImage);
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(mediaChannel, null);
+    });
+
+    final now = DateTime.now();
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'previous',
+          type: MediaType.photo,
+          createdAt: now,
+          pathOrUri: 'content://previous',
+        ),
+        MediaItem(
+          id: 'current',
+          type: MediaType.photo,
+          createdAt: now,
+          pathOrUri: 'content://current',
+        ),
+        MediaItem(
+          id: 'next',
+          type: MediaType.photo,
+          createdAt: now,
+          pathOrUri: 'content://next',
+        ),
+      ],
+      seed: 1,
+    );
+    controller.jumpToMedia('current');
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(requestedPreviewUris, contains('content://previous'));
+    expect(requestedPreviewUris, contains('content://next'));
+  });
+
   testWidgets('accepted horizontal swipe switches media before fly-out ends', (
     tester,
   ) async {

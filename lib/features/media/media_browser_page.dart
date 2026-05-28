@@ -2354,14 +2354,19 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         _isLocalFilePath(value);
   }
 
-  Future<void> _ensureMobilePreviewBytes(MediaItem media) async {
+  Future<Uint8List?> _ensureMobilePreviewBytes(MediaItem media) async {
     final pathOrUri = media.pathOrUri;
     if ((media.type != MediaType.photo && media.type != MediaType.video) ||
         pathOrUri == null ||
-        !_canLoadPlatformPreview(pathOrUri) ||
-        _mobilePreviewBytes.containsKey(media.id) ||
-        !_mobilePreviewLoadingIds.add(media.id)) {
-      return;
+        !_canLoadPlatformPreview(pathOrUri)) {
+      return null;
+    }
+    final existing = _mobilePreviewBytes[media.id];
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+    if (!_mobilePreviewLoadingIds.add(media.id)) {
+      return null;
     }
 
     try {
@@ -2369,13 +2374,15 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         pathOrUri,
       );
       if (!mounted || bytes == null || bytes.isEmpty) {
-        return;
+        return null;
       }
       setState(() {
         _mobilePreviewBytes[media.id] = bytes;
       });
+      return bytes;
     } catch (_) {
       // Best-effort preview loading only.
+      return null;
     } finally {
       _mobilePreviewLoadingIds.remove(media.id);
     }
@@ -2447,9 +2454,20 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     if (!mounted) {
       return;
     }
-    final candidates = _controller.prepareUpcomingMediaForPreloadQueue(
-      limit: 3,
-    );
+    final candidates = <MediaItem>[];
+    final seenIds = <String>{};
+    for (final media in _controller.prepareUpcomingMediaForPreloadQueue(
+      limit: 2,
+    )) {
+      if (seenIds.add(media.id)) {
+        candidates.add(media);
+      }
+    }
+    for (final media in _controller.preparePreviousMediaForPreloadQueue()) {
+      if (seenIds.add(media.id)) {
+        candidates.add(media);
+      }
+    }
     if (candidates.isEmpty) {
       _disposePreloadedVideoController();
       return;
@@ -2482,7 +2500,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     required bool initializeVideoController,
   }) async {
     await _loadMediaMetadataFor(media);
-    unawaited(_ensureMobilePreviewBytes(media));
+    await _ensureMobilePreviewBytes(media);
 
     if (media.type == MediaType.photo) {
       if (initializeVideoController) {

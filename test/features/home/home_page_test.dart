@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rephoto/data/mobile/mobile_media_repository.dart';
 import 'package:rephoto/data/local/state_store.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/features/home/home_controller.dart';
@@ -272,9 +275,11 @@ void main() {
 
     expect(controller.currentMediaId, 'late');
     expect(find.byKey(const Key('browse-resume-card')), findsOneWidget);
-    expect(find.text('上次浏览'), findsOneWidget);
-    expect(find.textContaining('第 2 / 3 张'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
+    expect(find.byKey(const Key('browse-resume-preview')), findsOneWidget);
+    expect(find.text('上次浏览'), findsNothing);
+    expect(find.textContaining('第 2 / 3 张'), findsNothing);
+    expect(find.textContaining('4月10日'), findsNothing);
+    expect(find.text('5'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('browse-resume-card')));
     await tester.pumpAndSettle();
@@ -315,13 +320,115 @@ void main() {
     expect(find.byKey(const Key('browse-resume-card')), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('2'), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
 
-    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
 
     expect(controller.currentMediaId, 'late');
     expect(find.byKey(const Key('browse-resume-card')), findsNothing);
+  });
+
+  testWidgets('monthly browser resume preview uses landscape ratio for video', (
+    tester,
+  ) async {
+    const mediaChannel = MethodChannelMobileMediaRepository.channel;
+    final landscapeBytes = _pngBytes(width: 160, height: 90);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(mediaChannel, (call) async {
+          if (call.method == 'fetchPreviewImageData') {
+            return landscapeBytes;
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(mediaChannel, null);
+    });
+
+    final store = InMemoryStateStore();
+    await store.saveBrowseProgress('month-2026-04', 'video');
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'video',
+          type: MediaType.video,
+          createdAt: DateTime(2026, 4, 10),
+          pathOrUri: 'content://video-landscape',
+        ),
+      ],
+      stateStore: store,
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+    controller.applyCollectionQuery(month.query);
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('browse-resume-card')), findsNothing);
+
+    await _pumpUntilFound(tester, const Key('browse-resume-card'));
+
+    final size = tester.getSize(find.byKey(const Key('browse-resume-card')));
+    expect(size.width, greaterThan(size.height));
+  });
+
+  testWidgets('monthly browser resume preview uses portrait ratio for video', (
+    tester,
+  ) async {
+    const mediaChannel = MethodChannelMobileMediaRepository.channel;
+    final portraitBytes = _pngBytes(width: 90, height: 160);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(mediaChannel, (call) async {
+          if (call.method == 'fetchPreviewImageData') {
+            return portraitBytes;
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(mediaChannel, null);
+    });
+
+    final store = InMemoryStateStore();
+    await store.saveBrowseProgress('month-2026-04', 'video');
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'video',
+          type: MediaType.video,
+          createdAt: DateTime(2026, 4, 10),
+          pathOrUri: 'content://video-portrait',
+        ),
+      ],
+      stateStore: store,
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+    controller.applyCollectionQuery(month.query);
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('browse-resume-card')), findsNothing);
+
+    await _pumpUntilFound(tester, const Key('browse-resume-card'));
+
+    final size = tester.getSize(find.byKey(const Key('browse-resume-card')));
+    expect(size.height, greaterThan(size.width));
   });
 
   testWidgets('tapping recent shortcut opens the matching browser collection', (
@@ -1592,4 +1699,76 @@ class _HomeFakeVideoPlayerPlatform extends VideoPlayerPlatform {
 
   @override
   Future<void> setMixWithOthers(bool mixWithOthers) async {}
+}
+
+Uint8List _pngBytes({required int width, required int height}) {
+  final bytes = BytesBuilder();
+  bytes.add([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+  bytes.add(
+    _pngChunk('IHDR', [
+      ..._uint32Bytes(width),
+      ..._uint32Bytes(height),
+      8,
+      6,
+      0,
+      0,
+      0,
+    ]),
+  );
+
+  final raw = BytesBuilder();
+  for (var row = 0; row < height; row += 1) {
+    raw.addByte(0);
+    for (var column = 0; column < width; column += 1) {
+      raw.add([0xFF, 0xFF, 0xFF, 0xFF]);
+    }
+  }
+  bytes.add(_pngChunk('IDAT', ZLibCodec().encode(raw.toBytes())));
+  bytes.add(_pngChunk('IEND', const []));
+  return bytes.toBytes();
+}
+
+Future<void> _pumpUntilFound(
+  WidgetTester tester,
+  Key key, {
+  int maxPumps = 80,
+}) async {
+  for (var attempt = 0; attempt < maxPumps; attempt += 1) {
+    if (find.byKey(key).evaluate().isNotEmpty) {
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  expect(find.byKey(key), findsOneWidget);
+}
+
+List<int> _pngChunk(String type, List<int> data) {
+  final typeBytes = type.codeUnits;
+  final bytes = BytesBuilder();
+  bytes.add(_uint32Bytes(data.length));
+  bytes.add(typeBytes);
+  bytes.add(data);
+  bytes.add(_uint32Bytes(_crc32([...typeBytes, ...data])));
+  return bytes.toBytes();
+}
+
+List<int> _uint32Bytes(int value) {
+  return [
+    (value >> 24) & 0xFF,
+    (value >> 16) & 0xFF,
+    (value >> 8) & 0xFF,
+    value & 0xFF,
+  ];
+}
+
+int _crc32(List<int> bytes) {
+  var crc = 0xFFFFFFFF;
+  for (final byte in bytes) {
+    crc ^= byte;
+    for (var bit = 0; bit < 8; bit += 1) {
+      final mask = -(crc & 1);
+      crc = (crc >> 1) ^ (0xEDB88320 & mask);
+    }
+  }
+  return (crc ^ 0xFFFFFFFF) & 0xFFFFFFFF;
 }

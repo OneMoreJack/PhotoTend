@@ -105,110 +105,81 @@ class _BrowseProgressCard extends StatelessWidget {
     required this.progress,
     required this.secondsRemaining,
     required this.onTap,
+    required this.preview,
+    required this.aspectRatio,
   });
 
   final BrowseProgress progress;
   final int secondsRemaining;
   final VoidCallback onTap;
+  final Widget preview;
+  final double aspectRatio;
 
   @override
   Widget build(BuildContext context) {
-    final createdAt = progress.media.createdAt;
-    final subtitle = createdAt == null
-        ? '第 ${progress.displayIndex} / ${progress.totalCount} 张'
-        : '第 ${progress.displayIndex} / ${progress.totalCount} 张 · ${_formatDate(createdAt)}';
+    final size = _previewSizeForAspectRatio(aspectRatio);
     return Semantics(
       button: true,
-      label: '上次浏览，$subtitle，点击跳转',
+      label: '上次浏览，点击跳转',
       child: Material(
         key: const Key('browse-resume-card'),
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(8),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: HuashuColors.surfaceRaised.withValues(alpha: 0.94),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: HuashuColors.line),
-              boxShadow: [
-                BoxShadow(
-                  color: HuashuColors.ink.withValues(alpha: 0.12),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
+          child: SizedBox(
+            width: size.width,
+            height: size.height,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: HuashuColors.darkroom,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: HuashuColors.surface.withValues(alpha: 0.9),
+                  width: 2,
                 ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: HuashuColors.accentSoft,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: const Icon(
-                      Icons.history_rounded,
-                      color: HuashuColors.accentDeep,
-                      size: 21,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          '上次浏览',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: HuashuColors.ink,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: HuashuColors.muted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    key: const Key('browse-resume-countdown'),
-                    width: 30,
-                    height: 30,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: HuashuColors.darkroom,
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Text(
-                      '$secondsRemaining',
-                      style: const TextStyle(
-                        color: HuashuColors.surface,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
-                      ),
-                    ),
+                boxShadow: [
+                  BoxShadow(
+                    color: HuashuColors.ink.withValues(alpha: 0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
                 ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    preview,
+                    Positioned(
+                      top: 5,
+                      right: 5,
+                      child: Container(
+                        key: const Key('browse-resume-countdown'),
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: HuashuColors.darkroom.withValues(alpha: 0.86),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: HuashuColors.surface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        child: Text(
+                          '$secondsRemaining',
+                          style: const TextStyle(
+                            color: HuashuColors.surface,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -217,8 +188,13 @@ class _BrowseProgressCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime value) {
-    return '${value.month}月${value.day}日';
+  Size _previewSizeForAspectRatio(double aspectRatio) {
+    if (aspectRatio >= 1) {
+      const height = 78.0;
+      return Size((height * aspectRatio).clamp(96.0, 148.0), height);
+    }
+    const width = 84.0;
+    return Size(width, (width / aspectRatio).clamp(96.0, 132.0));
   }
 }
 
@@ -255,8 +231,9 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   MediaItem? _transitionTargetMedia;
   MediaItem? _outgoingMedia;
   BrowseProgress? _browseProgress;
+  double? _browseProgressAspectRatio;
   Timer? _browseProgressTimer;
-  int _browseProgressCountdown = 3;
+  int _browseProgressCountdown = 5;
 
   // ---- Gesture animation state ----
   Offset _cardOffset = Offset.zero;
@@ -623,13 +600,14 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           ),
           if (_browseProgress != null)
             Positioned(
-              top: 14,
-              left: 18,
-              right: 18,
+              top: 8,
+              right: 10,
               child: _BrowseProgressCard(
                 progress: _browseProgress!,
                 secondsRemaining: _browseProgressCountdown,
                 onTap: _resumeBrowseProgress,
+                preview: _buildBrowseProgressPreview(_browseProgress!.media),
+                aspectRatio: _browseProgressAspectRatio!,
               ),
             ),
         ],
@@ -1011,6 +989,168 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     );
   }
 
+  Widget _buildBrowseProgressPreview(MediaItem item) {
+    return KeyedSubtree(
+      key: const Key('browse-resume-preview'),
+      child: _buildThumbnailTile(context, item, false),
+    );
+  }
+
+  Future<double> _resolveBrowseProgressAspectRatio(MediaItem item) async {
+    final pathOrUri = item.pathOrUri;
+    Uint8List? previewBytes;
+    if (pathOrUri != null && _canLoadPlatformPreview(pathOrUri)) {
+      previewBytes = await _loadPreviewBytesForAspectRatio(item);
+    }
+    final bytesAspectRatio = previewBytes == null
+        ? null
+        : _aspectRatioFromImageBytes(previewBytes);
+    if (bytesAspectRatio != null) {
+      if (item.type == MediaType.photo) {
+        _photoAspectRatios[item.id] = bytesAspectRatio;
+      }
+      return bytesAspectRatio;
+    }
+    final provider = item.type == MediaType.video
+        ? _buildVideoThumbnailProvider(item)
+        : _buildImageProvider(item.pathOrUri, mediaId: item.id);
+    final aspectRatio = provider == null
+        ? null
+        : await _resolveImageAspectRatio(provider);
+    if (aspectRatio != null) {
+      if (item.type == MediaType.photo) {
+        _photoAspectRatios[item.id] = aspectRatio;
+      }
+      return aspectRatio;
+    }
+    return 3 / 4;
+  }
+
+  Future<Uint8List?> _loadPreviewBytesForAspectRatio(MediaItem item) async {
+    final pathOrUri = item.pathOrUri;
+    final existing = _mobilePreviewBytes[item.id];
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+    if (pathOrUri == null) {
+      return null;
+    }
+    if (!_mobilePreviewLoadingIds.add(item.id)) {
+      return _waitForPreviewBytes(item.id);
+    }
+    try {
+      final bytes = await _mobileMediaRepository.fetchPreviewImageData(
+        pathOrUri,
+      );
+      if (!mounted || bytes == null || bytes.isEmpty) {
+        return null;
+      }
+      setState(() {
+        _mobilePreviewBytes[item.id] = bytes;
+      });
+      return bytes;
+    } catch (_) {
+      // Resume preview uses a stable fallback ratio if thumbnail loading fails.
+      return null;
+    } finally {
+      _mobilePreviewLoadingIds.remove(item.id);
+    }
+  }
+
+  Future<Uint8List?> _waitForPreviewBytes(String id) async {
+    for (var attempt = 0; attempt < 40; attempt += 1) {
+      final bytes = _mobilePreviewBytes[id];
+      if (bytes != null && bytes.isNotEmpty) {
+        return bytes;
+      }
+      if (!_mobilePreviewLoadingIds.contains(id)) {
+        return null;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    return _mobilePreviewBytes[id];
+  }
+
+  double? _aspectRatioFromImageBytes(Uint8List bytes) {
+    if (bytes.length >= 24 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      final data = ByteData.sublistView(bytes);
+      final width = data.getUint32(16);
+      final height = data.getUint32(20);
+      if (width > 0 && height > 0) {
+        return width / height;
+      }
+    }
+
+    if (bytes.length >= 4 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
+      var offset = 2;
+      while (offset + 9 < bytes.length) {
+        if (bytes[offset] != 0xFF) {
+          offset += 1;
+          continue;
+        }
+        final marker = bytes[offset + 1];
+        if (marker == 0xD9 || marker == 0xDA) {
+          break;
+        }
+        final segmentLength = (bytes[offset + 2] << 8) + bytes[offset + 3];
+        if (segmentLength < 2 || offset + 2 + segmentLength > bytes.length) {
+          break;
+        }
+        final isStartOfFrame =
+            marker >= 0xC0 &&
+            marker <= 0xCF &&
+            marker != 0xC4 &&
+            marker != 0xC8 &&
+            marker != 0xCC;
+        if (isStartOfFrame) {
+          final height = (bytes[offset + 5] << 8) + bytes[offset + 6];
+          final width = (bytes[offset + 7] << 8) + bytes[offset + 8];
+          if (width > 0 && height > 0) {
+            return width / height;
+          }
+          break;
+        }
+        offset += 2 + segmentLength;
+      }
+    }
+
+    return null;
+  }
+
+  Future<double?> _resolveImageAspectRatio(ImageProvider<Object> provider) {
+    final completer = Completer<double?>();
+    final stream = provider.resolve(const ImageConfiguration());
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        final width = info.image.width.toDouble();
+        final height = info.image.height.toDouble();
+        stream.removeListener(listener);
+        if (width <= 0 || height <= 0) {
+          completer.complete(null);
+          return;
+        }
+        completer.complete(width / height);
+      },
+      onError: (_, __) {
+        stream.removeListener(listener);
+        completer.complete(null);
+      },
+    );
+    stream.addListener(listener);
+    return completer.future.timeout(
+      const Duration(seconds: 2),
+      onTimeout: () {
+        stream.removeListener(listener);
+        return null;
+      },
+    );
+  }
+
   ImageProvider<Object>? _buildVideoThumbnailProvider(MediaItem item) {
     final bytes = _mobilePreviewBytes[item.id];
     if (bytes == null || bytes.isEmpty) {
@@ -1312,9 +1452,14 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     if (!mounted || progress == null) {
       return;
     }
+    final aspectRatio = await _resolveBrowseProgressAspectRatio(progress.media);
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _browseProgress = progress;
-      _browseProgressCountdown = 3;
+      _browseProgressAspectRatio = aspectRatio;
+      _browseProgressCountdown = 5;
     });
     _browseProgressTimer?.cancel();
     _browseProgressTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -1326,6 +1471,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         timer.cancel();
         setState(() {
           _browseProgress = null;
+          _browseProgressAspectRatio = null;
         });
         return;
       }
@@ -1343,6 +1489,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     _browseProgressTimer?.cancel();
     setState(() {
       _browseProgress = null;
+      _browseProgressAspectRatio = null;
     });
     _controller.jumpToMedia(progress.mediaId);
   }

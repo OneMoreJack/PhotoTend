@@ -2,11 +2,17 @@ import 'package:flutter/services.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 
 class MediaAlbum {
-  const MediaAlbum({required this.id, required this.name, required this.count});
+  const MediaAlbum({
+    required this.id,
+    required this.name,
+    required this.count,
+    this.relativePath,
+  });
 
   final String id;
   final String name;
   final int count;
+  final String? relativePath;
 }
 
 abstract class MobileMediaRepository {
@@ -220,6 +226,7 @@ class MethodChannelMobileMediaRepository implements MobileMediaRepository {
             id: (raw['id'] ?? '').toString(),
             name: (raw['name'] ?? '').toString(),
             count: _intFromRaw(raw['count']) ?? 0,
+            relativePath: raw['relativePath']?.toString(),
           ),
         )
         .where((album) => album.id.isNotEmpty && album.name.isNotEmpty)

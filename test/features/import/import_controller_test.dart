@@ -312,6 +312,34 @@ void main() {
   });
 
   test(
+    'controller imports selected items into explicit album target',
+    () async {
+      final repo = FakeExternalImportRepository([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+      ]);
+      final controller = ImportController(repository: repo);
+
+      await controller.refresh();
+      controller.toggleSelection('a');
+      await controller.importSelected(
+        albumTarget: ImportAlbumTarget.existing(
+          id: 'bucket-1',
+          name: '相机导入',
+          relativePath: 'DCIM/相机导入',
+        ),
+      );
+
+      expect(repo.importedAlbumTargets.single.id, 'bucket-1');
+      expect(repo.importedAlbumTargets.single.relativePath, 'DCIM/相机导入');
+    },
+  );
+
+  test(
     'controller imports all visible pending items when nothing is selected',
     () async {
       final repo = FakeExternalImportRepository([

@@ -301,15 +301,22 @@ class ImportController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> importPendingOrSelected({String albumName = 'RePhoto'}) async {
+  Future<void> importPendingOrSelected({
+    String albumName = 'RePhoto',
+    ImportAlbumTarget? albumTarget,
+  }) async {
     if (selectedCount == 0) {
       selectAllPending();
     }
-    await importSelected(albumName: albumName);
+    await importSelected(albumName: albumName, albumTarget: albumTarget);
   }
 
-  Future<void> importSelected({String albumName = 'RePhoto'}) async {
+  Future<void> importSelected({
+    String albumName = 'RePhoto',
+    ImportAlbumTarget? albumTarget,
+  }) async {
     if (isImporting || _selectedIds.isEmpty) return;
+    final target = albumTarget ?? ImportAlbumTarget.named(albumName);
     isImporting = true;
     completionMessage = null;
     importTotalCount = _selectedIds.length;
@@ -323,7 +330,7 @@ class ImportController extends ChangeNotifier {
       _statuses[id] = ImportItemStatus.importing;
       notifyListeners();
       try {
-        await _repository.importExternalMedia(item, albumName: albumName);
+        await _repository.importExternalMedia(item, albumTarget: target);
         _statuses[id] = ImportItemStatus.imported;
         _selectedIds.remove(id);
       } catch (_) {

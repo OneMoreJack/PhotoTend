@@ -256,12 +256,21 @@ class MainActivity : FlutterActivity() {
                         val sourceUri = call.argument<String>("sourceUri")
                         val displayName = call.argument<String>("displayName")
                         val type = call.argument<String>("type")
-                        val albumName = call.argument<String>("albumName") ?: "RePhoto"
+                        val albumName = call.argument<String>("albumName")
+                        val albumRelativePath = call.argument<String>("albumRelativePath")
+                        val useSystemLibrary = call.argument<Boolean>("useSystemLibrary") == true
                         if (sourceUri.isNullOrBlank() || displayName.isNullOrBlank()) {
                             result.error("INVALID_ARGUMENT", "sourceUri/displayName is empty", null)
                         } else {
                             runAsync(result) {
-                                importExternalMedia(sourceUri, displayName, type, albumName)
+                                importExternalMedia(
+                                    sourceUri,
+                                    displayName,
+                                    type,
+                                    albumName,
+                                    albumRelativePath,
+                                    useSystemLibrary
+                                )
                             }
                         }
                     }
@@ -443,16 +452,31 @@ class MainActivity : FlutterActivity() {
         uri: Uri,
         albums: LinkedHashMap<String, MutableMap<String, Any>>,
     ) {
-        val projection = arrayOf(
-            MediaStore.MediaColumns.BUCKET_ID,
-            MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
-        )
+        val projection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            arrayOf(
+                MediaStore.MediaColumns.BUCKET_ID,
+                MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
+                MediaStore.MediaColumns.RELATIVE_PATH,
+            )
+        } else {
+            arrayOf(
+                MediaStore.MediaColumns.BUCKET_ID,
+                MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
+                MediaStore.MediaColumns.DATA,
+            )
+        }
         contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
             val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_ID)
             val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_DISPLAY_NAME)
+            val pathIndex = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+            } else {
+                cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+            }
             while (cursor.moveToNext()) {
                 val id = cursor.getString(idIndex) ?: continue
                 val name = cursor.getString(nameIndex) ?: continue
+                val relativePath = albumRelativePathFromCursor(cursor, pathIndex)
                 val existing = albums.getOrPut(id) {
                     mutableMapOf<String, Any>(
                         "id" to id,
@@ -461,8 +485,24 @@ class MainActivity : FlutterActivity() {
                     )
                 }
                 existing["count"] = ((existing["count"] as? Int) ?: 0) + 1
+                if (relativePath != null && existing["relativePath"] == null) {
+                    existing["relativePath"] = relativePath
+                }
             }
         }
+    }
+
+    private fun albumRelativePathFromCursor(cursor: android.database.Cursor, pathIndex: Int): String? {
+        if (pathIndex < 0) return null
+        val raw = cursor.getString(pathIndex) ?: return null
+        val value = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            raw
+        } else {
+            val parent = File(raw).parent ?: return null
+            val root = Environment.getExternalStorageDirectory().absolutePath
+            if (parent.startsWith(root)) parent.removePrefix(root) else parent
+        }
+        return value.trim().trim('/').takeIf { it.isNotBlank() }
     }
 
     private fun fetchMediaPage(offset: Int, limit: Int): List<NativeMediaItem> {
@@ -1930,7 +1970,9 @@ class MainActivity : FlutterActivity() {
         sourceUriValue: String,
         displayName: String,
         requestedType: String?,
-        albumName: String,
+        albumName: String?,
+        albumRelativePath: String?,
+        useSystemLibrary: Boolean,
     ): String {
         val sourceUri = Uri.parse(sourceUriValue)
         val sourceMime = contentResolver.getType(sourceUri)
@@ -1959,12 +2001,10 @@ class MainActivity : FlutterActivity() {
             put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
             put(MediaStore.MediaColumns.MIME_TYPE, sourceMime)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val baseDir = if (mediaType == "video") {
-                    Environment.DIRECTORY_MOVIES
-                } else {
-                    Environment.DIRECTORY_PICTURES
-                }
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "$baseDir/$albumName")
+                put(
+                    MediaStore.MediaColumns.RELATIVE_PATH,
+                    importRelativePath(mediaType, albumName, albumRelativePath, useSystemLibrary)
+                )
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
@@ -1993,6 +2033,35 @@ class MainActivity : FlutterActivity() {
             } catch (_: Exception) {}
             throw error
         }
+    }
+
+    private fun importRelativePath(
+        mediaType: String,
+        albumName: String?,
+        albumRelativePath: String?,
+        useSystemLibrary: Boolean,
+    ): String {
+        val baseDir = if (mediaType == "video") {
+            Environment.DIRECTORY_MOVIES
+        } else {
+            Environment.DIRECTORY_PICTURES
+        }
+        if (useSystemLibrary) {
+            return baseDir
+        }
+        val existingPath = albumRelativePath
+            ?.trim()
+            ?.trim('/')
+            ?.takeIf { it.isNotBlank() }
+        if (existingPath != null) {
+            return existingPath
+        }
+        val safeAlbumName = albumName
+            ?.trim()
+            ?.trim('/')
+            ?.takeIf { it.isNotBlank() }
+            ?: "RePhoto"
+        return "$baseDir/$safeAlbumName"
     }
 
     private fun mimeTypeFromName(displayName: String): String? {

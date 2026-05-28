@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rephoto/data/mobile/external_import_repository.dart';
+import 'package:rephoto/data/mobile/mobile_media_repository.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/features/import/import_controller.dart';
 import 'package:rephoto/features/import/import_page.dart';
@@ -126,6 +127,65 @@ void main() {
     expect(snackBar.backgroundColor, HuashuColors.positive);
     expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     expect(find.text('导入完成'), findsOneWidget);
+    expect(repo.importedAlbumTargets.single.systemLibrary, isTrue);
+  });
+
+  testWidgets('album picker uses existing system album target', (tester) async {
+    const mediaChannel = MethodChannelMobileMediaRepository.channel;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(mediaChannel, (call) async {
+          if (call.method == 'fetchUserAlbums') {
+            return [
+              {
+                'id': 'bucket-camera-import',
+                'name': '相机导入',
+                'count': 840,
+                'relativePath': 'DCIM/相机导入',
+              },
+            ];
+          }
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(mediaChannel, null);
+    });
+
+    final repo = FakeExternalImportRepository([
+      ExternalImportItem(
+        id: 'a',
+        type: MediaType.photo,
+        displayName: 'a.jpg',
+        pathOrUri: 'content://doc/a',
+        createdAt: DateTime(2026, 5, 20),
+      ),
+    ]);
+    final controller = ImportController(repository: repo);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: HuashuTheme.build(),
+        home: ImportPage(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('import-album-picker-btn')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('导入到系统媒体库，不新建同名相簿'), findsOneWidget);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -260));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('DCIM/相机导入'), findsOneWidget);
+
+    await tester.tap(find.text('相机导入').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('导入全部'));
+    await tester.pumpAndSettle();
+
+    expect(repo.importedAlbumTargets.single.id, 'bucket-camera-import');
+    expect(repo.importedAlbumTargets.single.name, '相机导入');
+    expect(repo.importedAlbumTargets.single.relativePath, 'DCIM/相机导入');
   });
 }
 

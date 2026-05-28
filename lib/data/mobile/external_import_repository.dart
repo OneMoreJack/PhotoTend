@@ -42,6 +42,38 @@ class ExternalImportScanPage {
   final bool hasMore;
 }
 
+class ImportAlbumTarget {
+  const ImportAlbumTarget({
+    required this.name,
+    this.id,
+    this.relativePath,
+    this.systemLibrary = false,
+  });
+
+  const ImportAlbumTarget.systemLibrary()
+    : name = '你的图库',
+      id = null,
+      relativePath = null,
+      systemLibrary = true;
+
+  factory ImportAlbumTarget.existing({
+    required String id,
+    required String name,
+    String? relativePath,
+  }) {
+    return ImportAlbumTarget(id: id, name: name, relativePath: relativePath);
+  }
+
+  factory ImportAlbumTarget.named(String name) {
+    return ImportAlbumTarget(name: name);
+  }
+
+  final String name;
+  final String? id;
+  final String? relativePath;
+  final bool systemLibrary;
+}
+
 abstract class ExternalImportRepository {
   Future<String?> getSavedImportRoot();
   Future<List<ExternalImportRoot>> listImportRoots();
@@ -59,7 +91,7 @@ abstract class ExternalImportRepository {
   Future<List<String>> deleteExternalMediaItems(List<ExternalImportItem> items);
   Future<String> importExternalMedia(
     ExternalImportItem item, {
-    required String albumName,
+    required ImportAlbumTarget albumTarget,
   });
 }
 
@@ -177,14 +209,18 @@ class MethodChannelExternalImportRepository
   @override
   Future<String> importExternalMedia(
     ExternalImportItem item, {
-    required String albumName,
+    required ImportAlbumTarget albumTarget,
   }) async {
     final result = await channel
         .invokeMethod<String>('importExternalMedia', <String, dynamic>{
           'sourceUri': item.pathOrUri,
           'displayName': item.displayName,
           'type': item.type == MediaType.video ? 'video' : 'photo',
-          'albumName': albumName,
+          if (!albumTarget.systemLibrary) 'albumName': albumTarget.name,
+          if (albumTarget.id != null) 'albumId': albumTarget.id,
+          if (albumTarget.relativePath != null)
+            'albumRelativePath': albumTarget.relativePath,
+          'useSystemLibrary': albumTarget.systemLibrary,
         });
     return result ?? '';
   }
@@ -233,6 +269,7 @@ class FakeExternalImportRepository implements ExternalImportRepository {
   final List<ExternalImportItem> _items;
   final List<String> importedIds = <String>[];
   final List<String> importedAlbumNames = <String>[];
+  final List<ImportAlbumTarget> importedAlbumTargets = <ImportAlbumTarget>[];
   final List<String> deletedIds = <String>[];
   final Set<String> failingDeleteIds = <String>{};
   List<ExternalImportRoot> roots = const <ExternalImportRoot>[
@@ -317,10 +354,11 @@ class FakeExternalImportRepository implements ExternalImportRepository {
   @override
   Future<String> importExternalMedia(
     ExternalImportItem item, {
-    required String albumName,
+    required ImportAlbumTarget albumTarget,
   }) async {
     importedIds.add(item.id);
-    importedAlbumNames.add(albumName);
+    importedAlbumNames.add(albumTarget.name);
+    importedAlbumTargets.add(albumTarget);
     return 'content://media/imported/${item.id}';
   }
 

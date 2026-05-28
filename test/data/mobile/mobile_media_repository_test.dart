@@ -321,7 +321,11 @@ void main() {
     final page = await repo.scanImportRootPage(offset: 0, limit: 60);
     final importedUri = await repo.importExternalMedia(
       items.single,
-      albumName: 'RePhoto',
+      albumTarget: ImportAlbumTarget.existing(
+        id: 'album-1',
+        name: 'RePhoto',
+        relativePath: 'Pictures/RePhoto',
+      ),
     );
     final fullBytes = await repo.fetchFullImageData(items.single.pathOrUri);
     await repo.deleteExternalMedia(items.single);
@@ -349,8 +353,50 @@ void main() {
     expect((calls[2].arguments as Map)['rootId'], 'sd-1234');
     expect((calls[5].arguments as Map)['sourceUri'], items.single.pathOrUri);
     expect((calls[5].arguments as Map)['albumName'], 'RePhoto');
+    expect((calls[5].arguments as Map)['albumId'], 'album-1');
+    expect(
+      (calls[5].arguments as Map)['albumRelativePath'],
+      'Pictures/RePhoto',
+    );
+    expect((calls[5].arguments as Map)['useSystemLibrary'], isFalse);
     expect((calls[7].arguments as Map)['sourceUri'], items.single.pathOrUri);
   });
+
+  test(
+    'external import repository omits album name for system library',
+    () async {
+      const channel = MethodChannelExternalImportRepository.channel;
+      MethodCall? importCall;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'importExternalMedia') {
+              importCall = call;
+              return 'content://media/external/images/media/100';
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final repo = MethodChannelExternalImportRepository();
+      await repo.importExternalMedia(
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+        albumTarget: const ImportAlbumTarget.systemLibrary(),
+      );
+
+      final args = importCall!.arguments as Map<dynamic, dynamic>;
+      expect(args['useSystemLibrary'], isTrue);
+      expect(args.containsKey('albumName'), isFalse);
+      expect(args.containsKey('albumRelativePath'), isFalse);
+    },
+  );
 
   test('mobile media repository fetches user albums from platform', () async {
     const channel = MethodChannelMobileMediaRepository.channel;
@@ -359,7 +405,12 @@ void main() {
           if (call.method == 'fetchUserAlbums') {
             return [
               {'id': 'album-1', 'name': '旅行', 'count': 12},
-              {'id': 'album-2', 'name': '家庭', 'count': 3},
+              {
+                'id': 'album-2',
+                'name': '家庭',
+                'count': 3,
+                'relativePath': 'Pictures/家庭',
+              },
             ];
           }
           return null;
@@ -375,5 +426,6 @@ void main() {
     expect(albums.map((album) => album.name), ['旅行', '家庭']);
     expect(albums.first.id, 'album-1');
     expect(albums.first.count, 12);
+    expect(albums.last.relativePath, 'Pictures/家庭');
   });
 }

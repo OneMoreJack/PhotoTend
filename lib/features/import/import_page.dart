@@ -53,7 +53,8 @@ class _ImportPageState extends State<ImportPage> {
   List<MediaAlbum> _systemAlbums = const <MediaAlbum>[];
   bool _albumsLoading = false;
   bool _storagePickerPrompted = false;
-  String _selectedAlbumName = '你的图库';
+  ImportAlbumTarget _selectedAlbumTarget =
+      const ImportAlbumTarget.systemLibrary();
 
   @override
   void initState() {
@@ -112,7 +113,7 @@ class _ImportPageState extends State<ImportPage> {
         child: Column(
           children: [
             _ImportHeader(
-              albumName: _selectedAlbumName,
+              albumName: _selectedAlbumTarget.name,
               isImporting: _controller.isImporting,
               onBack: () => Navigator.of(context).maybePop(),
               onAlbumTap: _showAlbumPicker,
@@ -139,7 +140,7 @@ class _ImportPageState extends State<ImportPage> {
                     : _confirmDeleteSelectedItems,
                 onImport: () => unawaited(
                   _controller.importPendingOrSelected(
-                    albumName: _selectedAlbumName,
+                    albumTarget: _selectedAlbumTarget,
                   ),
                 ),
               ),
@@ -314,90 +315,118 @@ class _ImportPageState extends State<ImportPage> {
   Future<void> _showAlbumPicker() async {
     await _loadSystemAlbums();
     if (!mounted) return;
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showModalBottomSheet<Object>(
       context: context,
-      backgroundColor: HuashuColors.surfaceAlt,
+      backgroundColor: Colors.transparent,
       showDragHandle: true,
       builder: (context) {
         return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, 24),
-                child: Center(
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(0, 4, 0, 18),
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(24, 4, 24, 18),
                   child: Text(
-                    '导入至相簿',
+                    '导入至',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       color: _importInk,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
                     ),
                   ),
                 ),
-              ),
-              _AlbumPickerSectionLabel(label: '图库'),
-              _AlbumPickerTile(
-                icon: Icons.person_outline_rounded,
-                title: '你的图库',
-                selected: _selectedAlbumName == '你的图库',
-                onTap: () => Navigator.of(context).pop('你的图库'),
-              ),
-              const SizedBox(height: 18),
-              _AlbumPickerSectionLabel(label: '相簿'),
-              _AlbumPickerTile(
-                icon: Icons.add_rounded,
-                title: '新建相簿...',
-                selected: false,
-                onTap: () => Navigator.of(context).pop('__new_album__'),
-              ),
-              if (_albumsLoading)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(24, 24, 24, 32),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (_systemAlbums.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(24, 22, 24, 28),
-                  child: Text(
-                    '系统相册中暂无用户创建的相簿',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: _importMuted, fontSize: 16),
-                  ),
-                ),
-              for (final album in _orderedSystemAlbums)
+                const _AlbumPickerSectionLabel(label: '图库'),
                 _AlbumPickerTile(
-                  icon: Icons.photo_album_outlined,
-                  title: album.name,
-                  subtitle: album.count > 0 ? '${album.count} 个项目' : null,
-                  selected: _selectedAlbumName == album.name,
-                  onTap: () => Navigator.of(context).pop(album.name),
+                  icon: Icons.photo_library_outlined,
+                  title: '你的图库',
+                  subtitle: '导入到系统媒体库，不新建同名相簿',
+                  selected: _selectedAlbumTarget.systemLibrary,
+                  onTap: () => Navigator.of(
+                    context,
+                  ).pop(const ImportAlbumTarget.systemLibrary()),
                 ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 14),
+                const _AlbumPickerSectionLabel(label: '相簿'),
+                _AlbumPickerTile(
+                  icon: Icons.add_rounded,
+                  title: '新建相簿...',
+                  selected: false,
+                  onTap: () => Navigator.of(context).pop(_CreateAlbumAction()),
+                ),
+                if (_albumsLoading)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(24, 24, 24, 32),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_systemAlbums.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(24, 22, 24, 28),
+                    child: Text(
+                      '系统相册中暂无用户创建的相簿',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _importMuted, fontSize: 16),
+                    ),
+                  ),
+                for (final album in _orderedSystemAlbums)
+                  _AlbumPickerTile(
+                    icon: Icons.photo_album_outlined,
+                    title: album.name,
+                    subtitle: _albumSubtitle(album),
+                    selected:
+                        !_selectedAlbumTarget.systemLibrary &&
+                        _selectedAlbumTarget.id == album.id,
+                    onTap: () => Navigator.of(context).pop(
+                      ImportAlbumTarget.existing(
+                        id: album.id,
+                        name: album.name,
+                        relativePath: album.relativePath,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },
     );
     if (!mounted || selected == null) return;
-    if (selected == '__new_album__') {
+    if (selected is _CreateAlbumAction) {
       final created = await _showCreateAlbumDialog();
       if (!mounted || created == null || created.trim().isEmpty) return;
       final album = created.trim();
-      setState(() => _selectedAlbumName = album);
+      setState(() => _selectedAlbumTarget = ImportAlbumTarget.named(album));
       return;
     }
-    setState(() => _selectedAlbumName = selected);
+    if (selected is ImportAlbumTarget) {
+      setState(() => _selectedAlbumTarget = selected);
+    }
   }
 
   List<MediaAlbum> get _orderedSystemAlbums {
     final selected = _systemAlbums
-        .where((album) => album.name == _selectedAlbumName)
+        .where((album) => album.id == _selectedAlbumTarget.id)
         .toList(growable: false);
     final rest = _systemAlbums
-        .where((album) => album.name != _selectedAlbumName)
+        .where((album) => album.id != _selectedAlbumTarget.id)
         .toList(growable: false);
     return [...selected, ...rest];
+  }
+
+  String? _albumSubtitle(MediaAlbum album) {
+    final countLabel = album.count > 0 ? '${album.count} 个项目' : null;
+    final path = album.relativePath;
+    if (path == null || path.isEmpty) {
+      return countLabel;
+    }
+    return countLabel == null ? path : '$countLabel · $path';
   }
 
   Future<void> _loadSystemAlbums() async {
@@ -543,6 +572,10 @@ class _ImportDayGroup {
   final String key;
   final String title;
   final List<ExternalImportItem> items;
+}
+
+class _CreateAlbumAction {
+  const _CreateAlbumAction();
 }
 
 class _ImportHeader extends StatelessWidget {
@@ -1097,6 +1130,9 @@ class _AlbumPickerSectionLabel extends StatelessWidget {
   }
 }
 
+// Hallmark · component: album destination picker · genre: utilitarian · theme: Huashu
+// states: default · hover · focus · active · disabled · loading · error · success
+// contrast: pass (46-50)
 class _AlbumPickerTile extends StatelessWidget {
   const _AlbumPickerTile({
     required this.icon,
@@ -1114,30 +1150,86 @@ class _AlbumPickerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      tileColor: Colors.white,
-      leading: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: HuashuColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(7),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+      child: Material(
+        color: selected
+            ? HuashuColors.accentSoft.withValues(alpha: 0.58)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: icon == Icons.add_rounded
+                        ? HuashuColors.accentSoft.withValues(alpha: 0.74)
+                        : HuashuColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: selected
+                          ? _importBlue.withValues(alpha: 0.18)
+                          : HuashuColors.line,
+                    ),
+                  ),
+                  child: Icon(icon, color: _importBlue, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: icon == Icons.add_rounded
+                              ? _importBlue
+                              : _importInk,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _importMuted,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  opacity: selected ? 1 : 0,
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: _importBlue,
+                    size: 28,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        child: Icon(icon, color: _importBlue),
       ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: icon == Icons.add_rounded ? _importBlue : _importInk,
-          fontSize: 19,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: subtitle == null ? null : Text(subtitle!),
-      trailing: selected
-          ? const Icon(Icons.check_rounded, color: _importBlue, size: 30)
-          : null,
-      onTap: onTap,
     );
   }
 }

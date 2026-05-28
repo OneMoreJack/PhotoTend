@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:rephoto/data/local/state_store.dart';
 import 'package:rephoto/domain/models/album_summary_entry.dart';
 import 'package:rephoto/domain/models/deletion_stats.dart';
 import 'package:rephoto/domain/models/media_collection_query.dart';
@@ -20,6 +23,22 @@ enum TimeFilterPreset {
 
 enum BrowseMode { random, sequential }
 
+class BrowseProgress {
+  const BrowseProgress({
+    required this.collectionId,
+    required this.mediaId,
+    required this.displayIndex,
+    required this.totalCount,
+    required this.media,
+  });
+
+  final String collectionId;
+  final String mediaId;
+  final int displayIndex;
+  final int totalCount;
+  final MediaItem media;
+}
+
 class HomeController extends ChangeNotifier {
   static const String unknownLocationLabel = 'Unknown Location';
 
@@ -30,6 +49,7 @@ class HomeController extends ChangeNotifier {
     DateTime Function()? nowProvider,
     RandomPoolService? randomPoolService,
     GestureSessionService? gestureSessionService,
+    StateStore? stateStore,
   }) : _allMediaItems = List<MediaItem>.from(
          initialMediaItems ??
              _buildDefaultItems(initialMediaIds ?? const ['m1', 'm2', 'm3']),
@@ -37,7 +57,8 @@ class HomeController extends ChangeNotifier {
        _nowProvider = nowProvider ?? DateTime.now,
        _randomPoolService = randomPoolService ?? RandomPoolService(seed: seed),
        _gestureSessionService =
-           gestureSessionService ?? GestureSessionService() {
+           gestureSessionService ?? GestureSessionService(),
+       _stateStore = stateStore {
     _recomputeFilteredIds();
     _rebuildRandomPool();
     _showNext();
@@ -47,6 +68,7 @@ class HomeController extends ChangeNotifier {
   final DateTime Function() _nowProvider;
   final RandomPoolService _randomPoolService;
   final GestureSessionService _gestureSessionService;
+  final StateStore? _stateStore;
   final List<String> _shownHistory = <String>[];
   int _currentHistoryIndex = -1;
   String? _queuedNextMediaId;
@@ -244,6 +266,7 @@ class HomeController extends ChangeNotifier {
 
   void onSwipeLeftRandom() {
     _showNext();
+    _saveActiveBrowseProgress();
     notifyListeners();
   }
 
@@ -253,6 +276,7 @@ class HomeController extends ChangeNotifier {
       return;
     }
     _moveToHistoryIndex(targetIndex);
+    _saveActiveBrowseProgress();
     notifyListeners();
   }
 
@@ -265,6 +289,7 @@ class HomeController extends ChangeNotifier {
     _gestureSessionService.onDeleteCurrent(current);
     _rebuildRandomPool(retainSeen: true);
     _showNext();
+    _saveActiveBrowseProgress();
     notifyListeners();
   }
 
@@ -465,6 +490,16 @@ class HomeController extends ChangeNotifier {
       return;
     }
     _deletionStats = _deletionStats.add(DeletionStats.fromItems(items));
+    unawaited(_stateStore?.saveDeletionStats(_deletionStats));
+    notifyListeners();
+  }
+
+  Future<void> restoreDeletionStats() async {
+    final stats = await _stateStore?.loadDeletionStats();
+    if (stats == null) {
+      return;
+    }
+    _deletionStats = stats;
     notifyListeners();
   }
 
@@ -481,7 +516,39 @@ class HomeController extends ChangeNotifier {
     _randomPoolService.markConsumed(id);
     currentMediaId = id;
     _queuedNextMediaId = null;
+    _saveActiveBrowseProgress();
     notifyListeners();
+  }
+
+  Future<BrowseProgress?> loadActiveBrowseProgress() async {
+    final collectionId = _activeCollectionQuery?.collectionId;
+    if (!_canPersistBrowseProgressFor(collectionId)) {
+      return null;
+    }
+    final mediaId = await _stateStore?.loadBrowseProgress(collectionId!);
+    if (mediaId == null ||
+        mediaId == currentMediaId ||
+        !_isNavigableId(mediaId)) {
+      return null;
+    }
+    final media = mediaItemsByIds({mediaId}).firstOrNull;
+    if (media == null) {
+      return null;
+    }
+    final availableIds = _filteredMediaIds
+        .where((id) => !trashIds.contains(id))
+        .toList(growable: false);
+    final index = availableIds.indexOf(mediaId);
+    if (index < 0) {
+      return null;
+    }
+    return BrowseProgress(
+      collectionId: collectionId!,
+      mediaId: mediaId,
+      displayIndex: index + 1,
+      totalCount: availableIds.length,
+      media: media,
+    );
   }
 
   void setCountry(String? country) {
@@ -1165,6 +1232,19 @@ class HomeController extends ChangeNotifier {
       return;
     }
     _completedCollectionIds.add(collectionId);
+  }
+
+  void _saveActiveBrowseProgress() {
+    final collectionId = _activeCollectionQuery?.collectionId;
+    final mediaId = currentMediaId;
+    if (!_canPersistBrowseProgressFor(collectionId) || mediaId == null) {
+      return;
+    }
+    unawaited(_stateStore?.saveBrowseProgress(collectionId!, mediaId));
+  }
+
+  bool _canPersistBrowseProgressFor(String? collectionId) {
+    return collectionId != null && collectionId.startsWith('month-');
   }
 
   bool _isNavigableId(String id) {

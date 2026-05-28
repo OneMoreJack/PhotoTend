@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rephoto/data/local/state_store.dart';
+import 'package:rephoto/domain/models/deletion_stats.dart';
 import 'package:rephoto/domain/models/media_collection_query.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/features/home/home_controller.dart';
@@ -891,6 +893,92 @@ void main() {
 
       controller.setLocationFilter('CN/广东省/深圳市/福田区/@22.5439,114.0582');
       expect(controller.filteredMediaIds, ['office']);
+    },
+  );
+
+  test('controller persists cumulative permanent deletion stats', () async {
+    final store = InMemoryStateStore();
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(id: 'p1', type: MediaType.photo, sizeBytes: 1024),
+        MediaItem(id: 'v1', type: MediaType.video, sizeBytes: 2048),
+      ],
+      stateStore: store,
+      seed: 1,
+    );
+
+    controller.recordPermanentDeletionStats({'p1', 'v1'});
+
+    final restored = await store.loadDeletionStats();
+    expect(restored.photoCount, 1);
+    expect(restored.videoCount, 1);
+    expect(restored.knownSizeBytes, 3072);
+  });
+
+  test('controller restores cumulative permanent deletion stats', () async {
+    final store = InMemoryStateStore();
+    await store.saveDeletionStats(
+      const DeletionStats(photoCount: 4, videoCount: 1, knownSizeBytes: 8192),
+    );
+    final controller = HomeController(stateStore: store, seed: 1);
+
+    await controller.restoreDeletionStats();
+
+    expect(controller.deletionStats.photoCount, 4);
+    expect(controller.deletionStats.videoCount, 1);
+    expect(controller.deletionStats.knownSizeBytes, 8192);
+  });
+
+  test(
+    'controller persists monthly browse progress without resuming by default',
+    () async {
+      final store = InMemoryStateStore();
+      final controller = HomeController(
+        initialMediaItems: [
+          MediaItem(
+            id: 'late',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 20),
+          ),
+          MediaItem(
+            id: 'middle',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 10),
+          ),
+          MediaItem(
+            id: 'early',
+            type: MediaType.photo,
+            createdAt: DateTime(2026, 4, 1),
+          ),
+        ],
+        stateStore: store,
+        seed: 1,
+      );
+      final month = controller.monthlyAlbumSummaryEntries.first;
+
+      controller.applyCollectionQuery(month.query);
+      expect(controller.currentMediaId, 'late');
+
+      controller.jumpToMedia('middle');
+      await Future<void>.delayed(Duration.zero);
+
+      final restarted = HomeController(
+        initialMediaItems: controller.mediaItemsByIds({
+          'late',
+          'middle',
+          'early',
+        }),
+        stateStore: store,
+        seed: 1,
+      );
+      restarted.applyCollectionQuery(month.query);
+
+      expect(restarted.currentMediaId, 'late');
+
+      final resume = await restarted.loadActiveBrowseProgress();
+      expect(resume?.mediaId, 'middle');
+      expect(resume?.displayIndex, 2);
+      expect(resume?.totalCount, 3);
     },
   );
 }

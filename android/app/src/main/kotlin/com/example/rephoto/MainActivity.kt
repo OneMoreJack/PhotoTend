@@ -33,6 +33,7 @@ class MainActivity : FlutterActivity() {
     private val logTag = "RePhotoMedia"
     private val permissionsChannelName = "rephoto/mobile_permissions"
     private val mediaChannelName = "rephoto/mobile_media"
+    private val localStateChannelName = "rephoto/local_state"
     private val externalImportChannelName = "rephoto/external_import"
     private val requestCodeMediaRead = 9201
     private val requestCodeDeleteMedia = 9202
@@ -55,6 +56,14 @@ class MainActivity : FlutterActivity() {
     private val externalImportPrefs by lazy {
         getSharedPreferences("rephoto_external_import", MODE_PRIVATE)
     }
+    private val localStatePrefs by lazy {
+        getSharedPreferences("rephoto_local_state", MODE_PRIVATE)
+    }
+    private val deletionPhotoCountKey = "deletion_stats_photo_count"
+    private val deletionVideoCountKey = "deletion_stats_video_count"
+    private val deletionKnownSizeBytesKey = "deletion_stats_known_size_bytes"
+    private val deletionHasUnknownSizeKey = "deletion_stats_has_unknown_size"
+    private val browseProgressPrefix = "browse_progress_v1_"
     private val importRootUriKey = "import_root_uri"
     private val importFingerprintPrefix = "imported_v1_"
     private var lastImportDebugInfo: String = "导入诊断：尚未开始扫描。"
@@ -180,6 +189,28 @@ class MainActivity : FlutterActivity() {
                         } else {
                             result.error("INVALID_ARGUMENT", "pathOrUri or package is null", null)
                         }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, localStateChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "saveDeletionStats" -> {
+                        val args = call.arguments as? Map<*, *>
+                        saveDeletionStats(args)
+                        result.success(null)
+                    }
+                    "loadDeletionStats" -> result.success(loadDeletionStats())
+                    "saveBrowseProgress" -> {
+                        val args = call.arguments as? Map<*, *>
+                        saveBrowseProgress(args)
+                        result.success(null)
+                    }
+                    "loadBrowseProgress" -> {
+                        val args = call.arguments as? Map<*, *>
+                        result.success(loadBrowseProgress(args))
                     }
                     else -> result.notImplemented()
                 }
@@ -2193,6 +2224,65 @@ class MainActivity : FlutterActivity() {
             return null
         }
         return cursor.getString(columnIndex)
+    }
+
+    private fun saveDeletionStats(args: Map<*, *>?) {
+        localStatePrefs.edit()
+            .putInt(deletionPhotoCountKey, intArg(args, "photoCount"))
+            .putInt(deletionVideoCountKey, intArg(args, "videoCount"))
+            .putLong(deletionKnownSizeBytesKey, longArg(args, "knownSizeBytes"))
+            .putBoolean(deletionHasUnknownSizeKey, args?.get("hasUnknownSize") == true)
+            .apply()
+    }
+
+    private fun loadDeletionStats(): Map<String, Any> {
+        return mapOf(
+            "photoCount" to localStatePrefs.getInt(deletionPhotoCountKey, 0),
+            "videoCount" to localStatePrefs.getInt(deletionVideoCountKey, 0),
+            "knownSizeBytes" to localStatePrefs.getLong(deletionKnownSizeBytesKey, 0L),
+            "hasUnknownSize" to localStatePrefs.getBoolean(deletionHasUnknownSizeKey, false),
+        )
+    }
+
+    private fun saveBrowseProgress(args: Map<*, *>?) {
+        val collectionId = args?.get("collectionId") as? String
+        val mediaId = args?.get("mediaId") as? String
+        if (collectionId.isNullOrBlank() || mediaId.isNullOrBlank()) {
+            return
+        }
+        localStatePrefs.edit()
+            .putString("$browseProgressPrefix$collectionId", mediaId)
+            .apply()
+    }
+
+    private fun loadBrowseProgress(args: Map<*, *>?): String? {
+        val collectionId = args?.get("collectionId") as? String
+        if (collectionId.isNullOrBlank()) {
+            return null
+        }
+        return localStatePrefs.getString("$browseProgressPrefix$collectionId", null)
+    }
+
+    private fun intArg(args: Map<*, *>?, key: String): Int {
+        val raw = args?.get(key)
+        return when (raw) {
+            is Int -> raw
+            is Long -> raw.toInt()
+            is Number -> raw.toInt()
+            is String -> raw.toIntOrNull() ?: 0
+            else -> 0
+        }
+    }
+
+    private fun longArg(args: Map<*, *>?, key: String): Long {
+        val raw = args?.get(key)
+        return when (raw) {
+            is Long -> raw
+            is Int -> raw.toLong()
+            is Number -> raw.toLong()
+            is String -> raw.toLongOrNull() ?: 0L
+            else -> 0L
+        }
     }
 
     private data class NativeMediaItem(

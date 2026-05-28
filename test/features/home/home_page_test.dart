@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rephoto/data/local/state_store.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/features/home/home_controller.dart';
 import 'package:rephoto/features/home/home_page.dart';
@@ -233,6 +234,94 @@ void main() {
       find.byKey(const Key('reset-filters-and-restart-button')),
       findsNothing,
     );
+  });
+
+  testWidgets('monthly browser offers saved position and jumps on tap', (
+    tester,
+  ) async {
+    final store = InMemoryStateStore();
+    await store.saveBrowseProgress('month-2026-04', 'middle');
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'middle',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 10),
+        ),
+        MediaItem(
+          id: 'early',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 1),
+        ),
+      ],
+      stateStore: store,
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+    controller.applyCollectionQuery(month.query);
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+
+    expect(controller.currentMediaId, 'late');
+    expect(find.byKey(const Key('browse-resume-card')), findsOneWidget);
+    expect(find.text('上次浏览'), findsOneWidget);
+    expect(find.textContaining('第 2 / 3 张'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('browse-resume-card')));
+    await tester.pumpAndSettle();
+
+    expect(controller.currentMediaId, 'middle');
+    expect(find.byKey(const Key('browse-resume-card')), findsNothing);
+  });
+
+  testWidgets('monthly browser resume card dismisses after countdown', (
+    tester,
+  ) async {
+    final store = InMemoryStateStore();
+    await store.saveBrowseProgress('month-2026-04', 'middle');
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'middle',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 10),
+        ),
+      ],
+      stateStore: store,
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+    controller.applyCollectionQuery(month.query);
+
+    await tester.pumpWidget(
+      MaterialApp(home: MediaBrowserPage(controller: controller)),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('browse-resume-card')), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('2'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    expect(controller.currentMediaId, 'late');
+    expect(find.byKey(const Key('browse-resume-card')), findsNothing);
   });
 
   testWidgets('tapping recent shortcut opens the matching browser collection', (

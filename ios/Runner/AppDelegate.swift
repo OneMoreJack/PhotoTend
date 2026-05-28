@@ -7,6 +7,11 @@ import UIKit
 @objc class AppDelegate: FlutterAppDelegate {
   private let permissionsChannelName = "rephoto/mobile_permissions"
   private let mediaChannelName = "rephoto/mobile_media"
+  private let localStateChannelName = "rephoto/local_state"
+  private let deletionPhotoCountKey = "deletion_stats_photo_count"
+  private let deletionVideoCountKey = "deletion_stats_video_count"
+  private let deletionKnownSizeBytesKey = "deletion_stats_known_size_bytes"
+  private let deletionHasUnknownSizeKey = "deletion_stats_has_unknown_size"
 
   override func application(
     _ application: UIApplication,
@@ -78,9 +83,90 @@ import UIKit
           result(FlutterMethodNotImplemented)
         }
       }
+
+      let localStateChannel = FlutterMethodChannel(
+        name: localStateChannelName,
+        binaryMessenger: controller.binaryMessenger
+      )
+      localStateChannel.setMethodCallHandler { call, result in
+        switch call.method {
+        case "saveDeletionStats":
+          self.saveDeletionStats(arguments: call.arguments)
+          result(nil)
+        case "loadDeletionStats":
+          result(self.loadDeletionStats())
+        case "saveBrowseProgress":
+          self.saveBrowseProgress(arguments: call.arguments)
+          result(nil)
+        case "loadBrowseProgress":
+          result(self.loadBrowseProgress(arguments: call.arguments))
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  private func saveDeletionStats(arguments: Any?) {
+    let args = arguments as? [String: Any]
+    let defaults = UserDefaults.standard
+    defaults.set(intValue(args?["photoCount"]), forKey: deletionPhotoCountKey)
+    defaults.set(intValue(args?["videoCount"]), forKey: deletionVideoCountKey)
+    defaults.set(intValue(args?["knownSizeBytes"]), forKey: deletionKnownSizeBytesKey)
+    defaults.set(args?["hasUnknownSize"] as? Bool ?? false, forKey: deletionHasUnknownSizeKey)
+  }
+
+  private func loadDeletionStats() -> [String: Any] {
+    let defaults = UserDefaults.standard
+    return [
+      "photoCount": defaults.integer(forKey: deletionPhotoCountKey),
+      "videoCount": defaults.integer(forKey: deletionVideoCountKey),
+      "knownSizeBytes": defaults.integer(forKey: deletionKnownSizeBytesKey),
+      "hasUnknownSize": defaults.bool(forKey: deletionHasUnknownSizeKey),
+    ]
+  }
+
+  private func saveBrowseProgress(arguments: Any?) {
+    let args = arguments as? [String: Any]
+    guard
+      let collectionId = args?["collectionId"] as? String,
+      let mediaId = args?["mediaId"] as? String,
+      !collectionId.isEmpty,
+      !mediaId.isEmpty
+    else {
+      return
+    }
+    UserDefaults.standard.set(mediaId, forKey: browseProgressKey(collectionId))
+  }
+
+  private func loadBrowseProgress(arguments: Any?) -> String? {
+    let args = arguments as? [String: Any]
+    guard
+      let collectionId = args?["collectionId"] as? String,
+      !collectionId.isEmpty
+    else {
+      return nil
+    }
+    return UserDefaults.standard.string(forKey: browseProgressKey(collectionId))
+  }
+
+  private func browseProgressKey(_ collectionId: String) -> String {
+    return "browse_progress_v1_\(collectionId)"
+  }
+
+  private func intValue(_ raw: Any?) -> Int {
+    if let value = raw as? Int {
+      return value
+    }
+    if let value = raw as? NSNumber {
+      return value.intValue
+    }
+    if let value = raw as? String {
+      return Int(value) ?? 0
+    }
+    return 0
   }
 
   private func requestMediaReadPermission(result: @escaping FlutterResult) {

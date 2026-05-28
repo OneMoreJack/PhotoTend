@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:rephoto/data/local/state_store.dart';
 import 'package:rephoto/data/macos/folder_import_repository.dart';
 import 'package:rephoto/data/mobile/mobile_media_repository.dart';
 import 'package:rephoto/data/mobile/mobile_permissions_service.dart';
@@ -96,6 +97,131 @@ class _MediaInfoRow extends StatelessWidget {
   }
 }
 
+// Hallmark · component: resume card · genre: utilitarian · theme: Huashu
+// states: default · hover · focus · active · disabled · loading · error · success
+// contrast: pass (46-50)
+class _BrowseProgressCard extends StatelessWidget {
+  const _BrowseProgressCard({
+    required this.progress,
+    required this.secondsRemaining,
+    required this.onTap,
+  });
+
+  final BrowseProgress progress;
+  final int secondsRemaining;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final createdAt = progress.media.createdAt;
+    final subtitle = createdAt == null
+        ? '第 ${progress.displayIndex} / ${progress.totalCount} 张'
+        : '第 ${progress.displayIndex} / ${progress.totalCount} 张 · ${_formatDate(createdAt)}';
+    return Semantics(
+      button: true,
+      label: '上次浏览，$subtitle，点击跳转',
+      child: Material(
+        key: const Key('browse-resume-card'),
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: HuashuColors.surfaceRaised.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: HuashuColors.line),
+              boxShadow: [
+                BoxShadow(
+                  color: HuashuColors.ink.withValues(alpha: 0.12),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: HuashuColors.accentSoft,
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: const Icon(
+                      Icons.history_rounded,
+                      color: HuashuColors.accentDeep,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          '上次浏览',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: HuashuColors.ink,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: HuashuColors.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    key: const Key('browse-resume-countdown'),
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: HuashuColors.darkroom,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Text(
+                      '$secondsRemaining',
+                      style: const TextStyle(
+                        color: HuashuColors.surface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime value) {
+    return '${value.month}月${value.day}日';
+  }
+}
+
 class _MediaBrowserPageState extends State<MediaBrowserPage>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -128,6 +254,9 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   final Set<String> _playableUriLoadingIds = <String>{};
   MediaItem? _transitionTargetMedia;
   MediaItem? _outgoingMedia;
+  BrowseProgress? _browseProgress;
+  Timer? _browseProgressTimer;
+  int _browseProgressCountdown = 3;
 
   // ---- Gesture animation state ----
   Offset _cardOffset = Offset.zero;
@@ -145,7 +274,10 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     _ownsController = widget.controller == null;
     _controller =
         widget.controller ??
-        HomeController(initialMediaItems: const <MediaItem>[]);
+        HomeController(
+          initialMediaItems: const <MediaItem>[],
+          stateStore: MethodChannelLocalStateStore(),
+        );
     _deleteService = widget.deleteService;
     _lastCurrentMediaId = _controller.currentMediaId;
     _controller.addListener(_onControllerChanged);
@@ -156,9 +288,11 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     _flyAnimController.addListener(_onFlyAnimTick);
     _flyAnimController.addStatusListener(_onFlyAnimStatus);
     if (_ownsController) {
+      unawaited(_controller.restoreDeletionStats());
       _bootstrapMobileLibrary();
     }
     WidgetsBinding.instance.addObserver(this);
+    unawaited(_loadBrowseProgress());
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _preloadUpcomingMedia(),
     );
@@ -171,6 +305,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     _flyAnimController.removeListener(_onFlyAnimTick);
     _flyAnimController.removeStatusListener(_onFlyAnimStatus);
     _flyAnimController.dispose();
+    _browseProgressTimer?.cancel();
     _disposePreloadedVideoController();
     if (_ownsController) {
       _controller.dispose();
@@ -486,6 +621,17 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
               ),
             ),
           ),
+          if (_browseProgress != null)
+            Positioned(
+              top: 14,
+              left: 18,
+              right: 18,
+              child: _BrowseProgressCard(
+                progress: _browseProgress!,
+                secondsRemaining: _browseProgressCountdown,
+                onTap: _resumeBrowseProgress,
+              ),
+            ),
         ],
       ),
     );
@@ -1159,6 +1305,46 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
     }
 
     _preloadUpcomingMedia();
+  }
+
+  Future<void> _loadBrowseProgress() async {
+    final progress = await _controller.loadActiveBrowseProgress();
+    if (!mounted || progress == null) {
+      return;
+    }
+    setState(() {
+      _browseProgress = progress;
+      _browseProgressCountdown = 3;
+    });
+    _browseProgressTimer?.cancel();
+    _browseProgressTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_browseProgressCountdown <= 1) {
+        timer.cancel();
+        setState(() {
+          _browseProgress = null;
+        });
+        return;
+      }
+      setState(() {
+        _browseProgressCountdown -= 1;
+      });
+    });
+  }
+
+  void _resumeBrowseProgress() {
+    final progress = _browseProgress;
+    if (progress == null) {
+      return;
+    }
+    _browseProgressTimer?.cancel();
+    setState(() {
+      _browseProgress = null;
+    });
+    _controller.jumpToMedia(progress.mediaId);
   }
 
   Widget _buildEndStatusPreview() {

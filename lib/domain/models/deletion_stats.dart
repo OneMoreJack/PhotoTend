@@ -17,6 +17,27 @@ class DeletionStats {
 
   int get totalCount => photoCount + videoCount;
 
+  Map<String, Object> toMap() {
+    return <String, Object>{
+      'photoCount': photoCount,
+      'videoCount': videoCount,
+      'knownSizeBytes': knownSizeBytes,
+      'hasUnknownSize': hasUnknownSize,
+    };
+  }
+
+  static DeletionStats fromMap(Map<dynamic, dynamic>? map) {
+    if (map == null) {
+      return empty;
+    }
+    return DeletionStats(
+      photoCount: _intFromRaw(map['photoCount']),
+      videoCount: _intFromRaw(map['videoCount']),
+      knownSizeBytes: _intFromRaw(map['knownSizeBytes']),
+      hasUnknownSize: map['hasUnknownSize'] == true,
+    );
+  }
+
   DeletionStats add(DeletionStats other) {
     return DeletionStats(
       photoCount: photoCount + other.photoCount,
@@ -51,5 +72,14 @@ class DeletionStats {
       knownSizeBytes: size,
       hasUnknownSize: unknown,
     );
+  }
+
+  static int _intFromRaw(Object? raw) {
+    return switch (raw) {
+      int value => value,
+      num value => value.toInt(),
+      String value => int.tryParse(value) ?? 0,
+      _ => 0,
+    };
   }
 }

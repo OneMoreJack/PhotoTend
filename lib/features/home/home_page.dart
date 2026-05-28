@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:rephoto/data/local/state_store.dart';
 import 'package:rephoto/data/mobile/mobile_media_repository.dart';
 import 'package:rephoto/data/mobile/mobile_permissions_service.dart';
 import 'package:rephoto/domain/models/media_item.dart';
@@ -40,8 +43,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _ownsController = widget.controller == null;
     _controller =
         widget.controller ??
-        HomeController(initialMediaItems: const <MediaItem>[]);
+        HomeController(
+          initialMediaItems: const <MediaItem>[],
+          stateStore: MethodChannelLocalStateStore(),
+        );
     if (_ownsController) {
+      unawaited(_controller.restoreDeletionStats());
       _bootstrapMobileLibrary();
       WidgetsBinding.instance.addObserver(this);
     }

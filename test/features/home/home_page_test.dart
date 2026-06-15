@@ -192,12 +192,12 @@ void main() {
     );
 
     expect(find.text('RePhoto'), findsOneWidget);
-    expect(find.byTooltip('Settings'), findsOneWidget);
+    expect(find.byTooltip('设置'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('设置'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Reset Random Pool'), findsOneWidget);
+    expect(find.text('Reset Random Pool'), findsNothing);
     expect(find.text('Library rhythm'), findsNothing);
     expect(find.text('Recovered space'), findsNothing);
   });
@@ -916,10 +916,10 @@ void main() {
       MaterialApp(home: HomePage(controller: controller)),
     );
 
-    await tester.tap(find.byTooltip('Trash'));
+    await tester.tap(find.byTooltip('回收站'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Trash'), findsOneWidget);
+    expect(find.text('回收站'), findsOneWidget);
     expect(
       find.byKey(Key('trash-grid-item-${controller.trashIds.first}')),
       findsOneWidget,
@@ -1175,7 +1175,7 @@ void main() {
     await tester.tap(find.byTooltip('Menu'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('设置'), findsOneWidget);
   });
 
   testWidgets('import folder replaces media set in home controller', (
@@ -1206,12 +1206,12 @@ void main() {
       ),
     );
 
-    expect(find.text('Import Folder'), findsNothing);
+    expect(find.text('导入文件夹'), findsNothing);
     await tester.tap(find.byKey(const Key('browser-more-btn')));
     await tester.pumpAndSettle();
-    expect(find.text('Import Folder'), findsOneWidget);
+    expect(find.text('导入文件夹'), findsOneWidget);
 
-    await tester.tap(find.text('Import Folder'));
+    await tester.tap(find.text('导入文件夹'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -1514,7 +1514,9 @@ void main() {
     expect(find.text('16 MB'), findsOneWidget);
   });
 
-  testWidgets('reset random pool is moved into settings page', (tester) async {
+  testWidgets('reset random pool is not exposed from drawer or settings', (
+    tester,
+  ) async {
     final controller = HomeController(
       initialMediaIds: const ['a', 'b'],
       seed: 1,
@@ -1526,9 +1528,10 @@ void main() {
     expect(find.text('Reset Random Pool'), findsNothing);
     await tester.tap(find.byTooltip('Menu'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Settings'));
+    expect(find.text('Reset Random Pool'), findsNothing);
+    await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
-    expect(find.text('Reset Random Pool'), findsOneWidget);
+    expect(find.text('Reset Random Pool'), findsNothing);
   });
 
   testWidgets('settings shows cumulative permanent deletion stats', (
@@ -1549,13 +1552,13 @@ void main() {
 
     await tester.tap(find.byTooltip('Menu'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Settings'));
+    await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Cumulative deleted'), findsOneWidget);
-    expect(find.text('1 photo'), findsOneWidget);
-    expect(find.text('1 video'), findsOneWidget);
-    expect(find.text('3.0 KB saved'), findsOneWidget);
+    expect(find.text('累计删除'), findsOneWidget);
+    expect(find.text('1 张照片'), findsOneWidget);
+    expect(find.text('1 个视频'), findsOneWidget);
+    expect(find.text('已节省 3.0 KB'), findsOneWidget);
   });
 
   testWidgets('video only toggle switches controller mode', (tester) async {
@@ -1647,7 +1650,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('trash-badge-text')), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Trash'));
+    await tester.tap(find.byTooltip('回收站'));
     await tester.pumpAndSettle();
 
     await tester.tap(
@@ -1657,7 +1660,7 @@ void main() {
     await tester.tap(find.byKey(const Key('trash-bottom-restore-btn')));
     await tester.pumpAndSettle();
 
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('trash-badge-text')), findsNothing);

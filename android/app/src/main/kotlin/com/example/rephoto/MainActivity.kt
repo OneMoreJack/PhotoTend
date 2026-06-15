@@ -38,6 +38,7 @@ class MainActivity : FlutterActivity() {
     private val requestCodeMediaRead = 9201
     private val requestCodeDeleteMedia = 9202
     private val requestCodeImportRoot = 9203
+    private val requestCodeImportNotifications = 9204
     private var pendingPermissionResult: MethodChannel.Result? = null
     private var pendingDeleteResult: MethodChannel.Result? = null
     private var pendingImportRootResult: MethodChannel.Result? = null
@@ -274,6 +275,27 @@ class MainActivity : FlutterActivity() {
                             }
                         }
                     }
+                    "startBackgroundImport" -> {
+                        @Suppress("UNCHECKED_CAST")
+                        val items = call.argument<List<Map<String, Any?>>>("items")
+                        if (items.isNullOrEmpty()) {
+                            result.success(false)
+                        } else {
+                            requestImportNotificationPermissionIfNeeded()
+                            result.success(
+                                ExternalImportService.start(
+                                    this,
+                                    items,
+                                    call.argument<String>("albumName"),
+                                    call.argument<String>("albumRelativePath"),
+                                    call.argument<Boolean>("useSystemLibrary") == true,
+                                )
+                            )
+                        }
+                    }
+                    "getBackgroundImportStatus" -> {
+                        result.success(ExternalImportService.readStatus(this))
+                    }
                     "deleteExternalMedia" -> {
                         val sourceUri = call.argument<String>("sourceUri")
                         if (sourceUri.isNullOrBlank()) {
@@ -401,6 +423,20 @@ class MainActivity : FlutterActivity() {
         val permissions = mediaReadPermissions()
         pendingPermissionResult = result
         ActivityCompat.requestPermissions(this, permissions, requestCodeMediaRead)
+    }
+
+    private fun requestImportNotificationPermissionIfNeeded() {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                requestCodeImportNotifications,
+            )
+        }
     }
 
     private fun runAsync(result: MethodChannel.Result, block: () -> Any?) {

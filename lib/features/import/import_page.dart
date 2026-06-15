@@ -7,6 +7,7 @@ import 'package:rephoto/data/mobile/external_import_repository.dart';
 import 'package:rephoto/data/mobile/mobile_media_repository.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/features/import/import_controller.dart';
+import 'package:rephoto/l10n/app_localizations.dart';
 import 'package:rephoto/theme/huashu_snack_bar.dart';
 import 'package:rephoto/theme/huashu_theme.dart';
 
@@ -96,9 +97,13 @@ class _ImportPageState extends State<ImportPage> {
     if (message != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(HuashuSnackBars.success(message));
+        final localizations = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          HuashuSnackBars.success(
+            context,
+            localizations.localizeImportMessage(message),
+          ),
+        );
       });
     }
   }
@@ -126,7 +131,7 @@ class _ImportPageState extends State<ImportPage> {
                 selectedCount: _controller.selectedCount,
                 selectedSizeBytes: _controller.selectedSizeBytes,
                 statsLoading: !_controller.isScanningComplete,
-                isBusy: _controller.isImporting || _controller.isLoading,
+                isBusy: _controller.isImporting,
                 importCompletedCount: _controller.importCompletedCount,
                 importTotalCount: _controller.importTotalCount,
                 importProgress: _controller.importProgress,
@@ -151,12 +156,15 @@ class _ImportPageState extends State<ImportPage> {
   }
 
   Widget _buildBody(List<ExternalImportItem> items) {
+    final localizations = AppLocalizations.of(context);
     if (_controller.isLoading && items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
     if (items.isEmpty) {
       return _ImportEmptyState(
-        message: _controller.statusMessage ?? '请连接外接储存卡。',
+        message: _localizedControllerMessage(
+          _controller.statusMessage ?? localizations.connectStorageCard,
+        ),
         onChoose: _showStorageCardPicker,
         onRefresh: _controller.refresh,
       );
@@ -169,7 +177,7 @@ class _ImportPageState extends State<ImportPage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(26, 2, 26, 6),
               child: Text(
-                _controller.statusMessage!,
+                _localizedControllerMessage(_controller.statusMessage!),
                 style: const TextStyle(color: _importMuted),
               ),
             ),
@@ -225,6 +233,10 @@ class _ImportPageState extends State<ImportPage> {
     );
   }
 
+  String _localizedControllerMessage(String message) {
+    return AppLocalizations.of(context).localizeImportMessage(message);
+  }
+
   Future<void> _showStorageCardPicker({
     List<ExternalImportRoot>? initialRoots,
   }) async {
@@ -234,6 +246,7 @@ class _ImportPageState extends State<ImportPage> {
       await _controller.chooseStorageCard();
       return;
     }
+    final localizations = AppLocalizations.of(context);
     final selected = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: HuashuColors.surfaceAlt,
@@ -243,12 +256,12 @@ class _ImportPageState extends State<ImportPage> {
           child: ListView(
             shrinkWrap: true,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, 18),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
                 child: Center(
                   child: Text(
-                    '选择要导入的储存卡',
-                    style: TextStyle(
+                    localizations.chooseStorageCardTitle,
+                    style: const TextStyle(
                       color: _importInk,
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -260,15 +273,16 @@ class _ImportPageState extends State<ImportPage> {
                 _AlbumPickerTile(
                   icon: Icons.sd_card_rounded,
                   title: root.label,
-                  subtitle: root.description ?? '点按后授权访问并加载照片',
+                  subtitle:
+                      root.description ?? localizations.authorizeStorageHint,
                   selected: false,
                   onTap: () => Navigator.of(context).pop(root.id),
                 ),
               const SizedBox(height: 8),
               _AlbumPickerTile(
                 icon: Icons.folder_open_rounded,
-                title: '手动授权位置',
-                subtitle: '检测不到储存卡时使用',
+                title: localizations.manualAuthorizeLocation,
+                subtitle: localizations.manualAuthorizeHint,
                 selected: false,
                 onTap: () => Navigator.of(context).pop('__manual__'),
               ),
@@ -287,15 +301,16 @@ class _ImportPageState extends State<ImportPage> {
   Future<void> _confirmDeleteSelectedItems() async {
     final count = _controller.selectedCount;
     if (count == 0) return;
+    final localizations = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('从储存卡删除？'),
-        content: Text('将从储存卡上永久删除 $count 张照片。'),
+        title: Text(localizations.deleteFromStorageTitle),
+        content: Text(localizations.deleteFromStorageMessage(count)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(localizations.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -303,7 +318,7 @@ class _ImportPageState extends State<ImportPage> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('删除'),
+            child: Text(localizations.delete),
           ),
         ],
       ),
@@ -315,6 +330,7 @@ class _ImportPageState extends State<ImportPage> {
   Future<void> _showAlbumPicker() async {
     await _loadSystemAlbums();
     if (!mounted) return;
+    final localizations = AppLocalizations.of(context);
     final selected = await showModalBottomSheet<Object>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -330,10 +346,10 @@ class _ImportPageState extends State<ImportPage> {
               shrinkWrap: true,
               padding: const EdgeInsets.fromLTRB(0, 4, 0, 18),
               children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(24, 4, 24, 18),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 18),
                   child: Text(
-                    '导入至',
+                    localizations.importTo,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: _importInk,
@@ -343,21 +359,21 @@ class _ImportPageState extends State<ImportPage> {
                     ),
                   ),
                 ),
-                const _AlbumPickerSectionLabel(label: '图库'),
+                _AlbumPickerSectionLabel(label: localizations.librarySection),
                 _AlbumPickerTile(
                   icon: Icons.photo_library_outlined,
-                  title: '你的图库',
-                  subtitle: '导入到系统媒体库，不新建同名相簿',
+                  title: localizations.yourLibrary,
+                  subtitle: localizations.systemLibrarySubtitle,
                   selected: _selectedAlbumTarget.systemLibrary,
                   onTap: () => Navigator.of(
                     context,
                   ).pop(const ImportAlbumTarget.systemLibrary()),
                 ),
                 const SizedBox(height: 14),
-                const _AlbumPickerSectionLabel(label: '相簿'),
+                _AlbumPickerSectionLabel(label: localizations.albumsSection),
                 _AlbumPickerTile(
                   icon: Icons.add_rounded,
-                  title: '新建相簿...',
+                  title: localizations.newAlbum,
                   selected: false,
                   onTap: () => Navigator.of(context).pop(_CreateAlbumAction()),
                 ),
@@ -367,10 +383,10 @@ class _ImportPageState extends State<ImportPage> {
                     child: Center(child: CircularProgressIndicator()),
                   )
                 else if (_systemAlbums.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(24, 22, 24, 28),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
                     child: Text(
-                      '系统相册中暂无用户创建的相簿',
+                      localizations.noUserAlbums,
                       textAlign: TextAlign.center,
                       style: TextStyle(color: _importMuted, fontSize: 16),
                     ),
@@ -421,7 +437,9 @@ class _ImportPageState extends State<ImportPage> {
   }
 
   String? _albumSubtitle(MediaAlbum album) {
-    final countLabel = album.count > 0 ? '${album.count} 个项目' : null;
+    final countLabel = album.count > 0
+        ? AppLocalizations.of(context).itemsCount(album.count)
+        : null;
     final path = album.relativePath;
     if (path == null || path.isEmpty) {
       return countLabel;
@@ -448,31 +466,34 @@ class _ImportPageState extends State<ImportPage> {
     }
   }
 
-  Future<String?> _showCreateAlbumDialog() {
+  Future<String?> _showCreateAlbumDialog() async {
+    final localizations = AppLocalizations.of(context);
     final controller = TextEditingController();
-    return showDialog<String>(
+    final albumName = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('新建相簿'),
+        title: Text(localizations.createAlbumTitle),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: '相簿名'),
+          decoration: InputDecoration(hintText: localizations.albumNameHint),
           textInputAction: TextInputAction.done,
           onSubmitted: (value) => Navigator.of(context).pop(value),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(localizations.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('创建'),
+            child: Text(localizations.create),
           ),
         ],
       ),
-    ).whenComplete(controller.dispose);
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
+    return albumName;
   }
 
   List<_ImportDayGroup> _groupByDay(List<ExternalImportItem> items) {
@@ -480,7 +501,7 @@ class _ImportPageState extends State<ImportPage> {
     for (final item in items) {
       final date = item.createdAt;
       final key = date == null
-          ? '未知日期'
+          ? AppLocalizations.of(context).unknownDate
           : '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
       buckets.putIfAbsent(key, () => <ExternalImportItem>[]).add(item);
     }
@@ -496,10 +517,11 @@ class _ImportPageState extends State<ImportPage> {
   }
 
   String _formatGroupTitle(String key) {
-    if (key == '未知日期') return key;
+    final localizations = AppLocalizations.of(context);
+    if (key == localizations.unknownDate) return key;
     final parts = key.split('-');
     if (parts.length != 3) return key;
-    return '${int.parse(parts[1])}月${int.parse(parts[2])}日';
+    return localizations.monthDay(int.parse(parts[1]), int.parse(parts[2]));
   }
 
   Future<void> _ensurePreviewBytes(ExternalImportItem item) async {
@@ -593,6 +615,7 @@ class _ImportHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: _importSurface,
@@ -603,16 +626,16 @@ class _ImportHeader extends StatelessWidget {
         child: Row(
           children: [
             IconButton(
-              tooltip: '返回',
+              tooltip: localizations.backTooltip,
               onPressed: onBack,
               icon: const Icon(Icons.arrow_back_rounded),
               iconSize: 28,
               color: HuashuColors.ink,
             ),
             const SizedBox(width: 8),
-            const Expanded(
+            Expanded(
               child: Text(
-                '导入',
+                localizations.importTitle,
                 textAlign: TextAlign.left,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -692,6 +715,7 @@ class _ImportGroupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 22, 8, 10),
       child: InkWell(
@@ -728,7 +752,7 @@ class _ImportGroupHeader extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '$itemCount 个项目',
+                          localizations.itemsCount(itemCount),
                           style: const TextStyle(
                             color: HuashuColors.faint,
                             fontSize: 20,
@@ -760,7 +784,9 @@ class _ImportGroupHeader extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                child: Text(allSelected ? '取消选择' : '选择'),
+                child: Text(
+                  allSelected ? localizations.deselect : localizations.select,
+                ),
               ),
             ],
           ),
@@ -935,6 +961,7 @@ class _ImportEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final illustrationSize = constraints.maxWidth.clamp(220.0, 280.0);
@@ -952,8 +979,8 @@ class _ImportEmptyState extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  '未发现可导入内容',
+                Text(
+                  localizations.importEmptyTitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: _importInk,
@@ -989,7 +1016,7 @@ class _ImportEmptyState extends StatelessWidget {
                     ),
                   ),
                   icon: const Icon(Icons.folder_open_rounded, size: 24),
-                  label: const Text('选择存储源'),
+                  label: Text(localizations.chooseStorageSource),
                 ),
                 const SizedBox(height: 18),
                 TextButton.icon(
@@ -1002,7 +1029,7 @@ class _ImportEmptyState extends StatelessWidget {
                     ),
                   ),
                   icon: const Icon(Icons.refresh_rounded, size: 22),
-                  label: const Text('重新刷新'),
+                  label: Text(localizations.refresh),
                 ),
               ],
             ),
@@ -1271,12 +1298,17 @@ class _ImportBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     final hasSelection = selectedCount > 0;
     final hasImportTotal = importTotalCount > 0;
-    final countText = hasSelection ? '已选 $selectedCount' : '$itemCount 个项目';
+    final countText = hasSelection
+        ? localizations.selectedCount(selectedCount)
+        : localizations.itemsCount(itemCount);
     final size = hasSelection ? selectedSizeBytes : totalSizeBytes;
     final sizeText = size > 0 ? _formatBytes(size) : null;
-    final importLabel = selectedCount == 0 ? '导入全部' : '导入选中';
+    final importLabel = selectedCount == 0
+        ? localizations.importAll
+        : localizations.importSelected;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: HuashuColors.surfaceRaised.withValues(alpha: 0.98),
@@ -1293,7 +1325,7 @@ class _ImportBottomBar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isBusy || hasImportTotal) ...[
+            if (statsLoading || isBusy || hasImportTotal) ...[
               Row(
                 children: [
                   Expanded(
@@ -1331,7 +1363,7 @@ class _ImportBottomBar extends StatelessWidget {
                 const SizedBox(width: 8),
                 PopupMenuButton<_ImportMoreAction>(
                   key: const Key('import-more-actions-btn'),
-                  tooltip: '更多操作',
+                  tooltip: localizations.moreActions,
                   enabled: !isBusy,
                   icon: const Icon(Icons.more_horiz_rounded),
                   color: HuashuColors.surfaceRaised,
@@ -1346,19 +1378,19 @@ class _ImportBottomBar extends StatelessWidget {
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: _ImportMoreAction.choose,
                       child: ListTile(
-                        leading: Icon(Icons.folder_open_rounded),
-                        title: Text('重选储存卡'),
+                        leading: const Icon(Icons.folder_open_rounded),
+                        title: Text(localizations.chooseAnotherStorageCard),
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: _ImportMoreAction.refresh,
                       child: ListTile(
-                        leading: Icon(Icons.refresh_rounded),
-                        title: Text('刷新'),
+                        leading: const Icon(Icons.refresh_rounded),
+                        title: Text(localizations.refresh),
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
@@ -1366,7 +1398,7 @@ class _ImportBottomBar extends StatelessWidget {
                       key: const Key('import-toggle-raw-menu-item'),
                       value: _ImportMoreAction.toggleRaw,
                       checked: includeRaw,
-                      child: const Text('加载 RAW 文件'),
+                      child: Text(localizations.loadRawFiles),
                     ),
                   ],
                 ),
@@ -1396,7 +1428,7 @@ class _ImportBottomBar extends StatelessWidget {
                       ),
                     ),
                     icon: const Icon(Icons.delete_forever_outlined, size: 24),
-                    label: const Text('删除'),
+                    label: Text(localizations.delete),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1452,7 +1484,12 @@ class _ImportBatchSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = loading ? '正在扫描' : (hasSelection ? '当前选择' : '待导入');
+    final localizations = AppLocalizations.of(context);
+    final label = loading
+        ? localizations.scanning
+        : (hasSelection
+              ? localizations.currentSelection
+              : localizations.pendingImport);
     return Column(
       key: const Key('import-bottom-summary'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1471,7 +1508,7 @@ class _ImportBatchSummary extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           loading
-              ? '统计中…'
+              ? localizations.calculating
               : [countText, if (sizeText != null) sizeText].join(' · '),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

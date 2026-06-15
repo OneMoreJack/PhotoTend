@@ -12,6 +12,7 @@ import 'package:rephoto/features/import/import_page.dart';
 import 'package:rephoto/features/media/media_browser_page.dart';
 import 'package:rephoto/features/settings/settings_page.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
+import 'package:rephoto/l10n/app_localizations.dart';
 import 'package:rephoto/theme/huashu_theme.dart';
 
 class AlbumSummaryPage extends StatefulWidget {
@@ -117,12 +118,12 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
                                 _openBrowser(context, entry),
                           ),
                       ] else if (widget.statusMessage == null)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 64),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 64),
                           child: Text(
-                            '暂无可显示的照片或视频',
+                            AppLocalizations.of(context).emptyLibraryMessage,
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: HuashuColors.muted),
+                            style: const TextStyle(color: HuashuColors.muted),
                           ),
                         ),
                     ],
@@ -159,18 +160,16 @@ class _AlbumSummaryPageState extends State<AlbumSummaryPage> {
   }
 
   Future<void> _openSettings() async {
-    final action = await Navigator.of(context).push<SettingsAction>(
+    final localeScope = RePhotoLocaleScope.maybeOf(context);
+    await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) =>
-            SettingsPage(deletionStats: widget.controller.deletionStats),
+        builder: (_) => SettingsPage(
+          deletionStats: widget.controller.deletionStats,
+          selectedLanguage: localeScope?.language ?? AppLanguage.zh,
+          onLanguageChanged: localeScope?.setLanguage,
+        ),
       ),
     );
-    if (!mounted || action == null) {
-      return;
-    }
-    if (action == SettingsAction.resetRandomPool) {
-      widget.controller.resetRandomPool();
-    }
   }
 
   Future<void> _openImport() async {
@@ -250,6 +249,7 @@ class _AlbumHomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Padding(
       key: const Key('album-home-header'),
       padding: const EdgeInsets.only(bottom: 18),
@@ -270,7 +270,7 @@ class _AlbumHomeHeader extends StatelessWidget {
           ),
           IconButton(
             key: const Key('album-settings-btn'),
-            tooltip: 'Settings',
+            tooltip: localizations.settingsTitle,
             onPressed: onSettings,
             icon: const Icon(Icons.settings_outlined),
             color: HuashuColors.inkSoft,
@@ -295,6 +295,7 @@ class _AlbumBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return SafeArea(
       top: false,
       child: DecoratedBox(
@@ -316,19 +317,19 @@ class _AlbumBottomNav extends StatelessWidget {
             children: [
               _AlbumNavItem(
                 icon: Icons.photo_library_outlined,
-                label: 'Photos',
+                label: localizations.photosTab,
                 active: true,
                 onTap: () {},
               ),
               _AlbumNavItem(
                 key: const Key('album-nav-import'),
                 icon: Icons.drive_folder_upload_outlined,
-                label: 'Import',
+                label: localizations.importTab,
                 onTap: onImport,
               ),
               _AlbumNavItem(
                 icon: Icons.delete_outline,
-                label: 'Trash',
+                label: localizations.trashTitle,
                 badgeCount: trashCount,
                 onTap: onTrash,
               ),
@@ -724,7 +725,7 @@ class _RecentShortcutCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _recentKicker(entry),
+                      _recentKicker(context, entry),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -735,7 +736,7 @@ class _RecentShortcutCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      _recentTitle(entry),
+                      _recentTitle(context, entry),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -755,15 +756,17 @@ class _RecentShortcutCard extends StatelessWidget {
     );
   }
 
-  String _recentKicker(AlbumSummaryEntry entry) {
-    if (entry.id == 'recent-7-days') return 'Last Week';
-    if (entry.id == 'all-media') return 'Library';
+  String _recentKicker(BuildContext context, AlbumSummaryEntry entry) {
+    final localizations = AppLocalizations.of(context);
+    if (entry.id == 'recent-7-days') return localizations.recentKicker;
+    if (entry.id == 'all-media') return localizations.libraryKicker;
     return entry.title;
   }
 
-  String _recentTitle(AlbumSummaryEntry entry) {
-    if (entry.id == 'recent-7-days') return '近一周';
-    if (entry.id == 'all-media') return '所有照片';
+  String _recentTitle(BuildContext context, AlbumSummaryEntry entry) {
+    final localizations = AppLocalizations.of(context);
+    if (entry.id == 'recent-7-days') return localizations.recentTitle;
+    if (entry.id == 'all-media') return localizations.allPhotosTitle;
     return entry.title;
   }
 }

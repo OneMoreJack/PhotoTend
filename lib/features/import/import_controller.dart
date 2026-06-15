@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:rephoto/data/mobile/external_import_repository.dart';
 
@@ -13,6 +15,7 @@ class ImportController extends ChangeNotifier {
   final Set<String> _selectedIds = <String>{};
   final Map<String, ImportItemStatus> _statuses = <String, ImportItemStatus>{};
   int _scanSession = 0;
+  bool _disposed = false;
 
   bool isLoading = false;
   bool isImporting = false;
@@ -75,6 +78,7 @@ class ImportController extends ChangeNotifier {
         ..clear()
         ..addAll(const <ExternalImportItem>[]);
       await _scanImportRootProgressively(session: session, clearTrash: false);
+      unawaited(_resumeBackgroundImportIfNeeded());
     } catch (_) {
       if (session != _scanSession) return;
       needsStorageCard = true;
@@ -122,6 +126,7 @@ class ImportController extends ChangeNotifier {
       _statuses.clear();
       _trashedItems.clear();
       await _scanImportRootProgressively(session: session, clearTrash: true);
+      unawaited(_resumeBackgroundImportIfNeeded());
     } catch (_) {
       if (session != _scanSession) return;
       needsStorageCard = true;
@@ -324,6 +329,18 @@ class ImportController extends ChangeNotifier {
     notifyListeners();
     final byId = {for (final item in _visibleItems) item.id: item};
     final ids = List<String>.from(_selectedIds);
+    final items = ids
+        .map((id) => byId[id])
+        .whereType<ExternalImportItem>()
+        .toList();
+    for (final item in items) {
+      _statuses[item.id] = ImportItemStatus.importing;
+    }
+    notifyListeners();
+    if (await _repository.startBackgroundImport(items, albumTarget: target)) {
+      await _trackBackgroundImport(ids);
+      return;
+    }
     for (final id in ids) {
       final item = byId[id];
       if (item == null) continue;
@@ -339,6 +356,55 @@ class ImportController extends ChangeNotifier {
       importCompletedCount += 1;
       notifyListeners();
     }
+    _finishImport();
+  }
+
+  Future<void> _trackBackgroundImport(List<String> ids) async {
+    while (!_disposed) {
+      final status = await _repository.getBackgroundImportStatus();
+      if (_disposed) return;
+      if (status == null) {
+        for (final id in ids) {
+          _statuses[id] = ImportItemStatus.failed;
+        }
+        importCompletedCount = ids.length;
+        break;
+      }
+      _applyBackgroundImportStatus(status);
+      notifyListeners();
+      if (!status.running) break;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    if (_disposed) return;
+    _finishImport();
+  }
+
+  Future<void> _resumeBackgroundImportIfNeeded() async {
+    if (_disposed || isImporting) return;
+    final status = await _repository.getBackgroundImportStatus();
+    if (_disposed || status == null || !status.running) return;
+    isImporting = true;
+    _applyBackgroundImportStatus(status);
+    notifyListeners();
+    await _trackBackgroundImport(_visibleItems.map((item) => item.id).toList());
+  }
+
+  void _applyBackgroundImportStatus(ExternalImportBatchStatus status) {
+    importTotalCount = status.totalCount;
+    importCompletedCount = status.completedCount;
+    for (final id in status.importedIds) {
+      _statuses[id] = ImportItemStatus.imported;
+      _selectedIds.remove(id);
+    }
+    for (final id in status.failedIds) {
+      _statuses[id] = ImportItemStatus.failed;
+      if (_visibleItems.any((item) => item.id == id)) {
+        _selectedIds.add(id);
+      }
+    }
+  }
+
+  void _finishImport() {
     isImporting = false;
     if (_selectedIds.isEmpty) {
       completionMessage = '导入完成';
@@ -346,6 +412,12 @@ class ImportController extends ChangeNotifier {
       statusMessage = '部分照片导入失败，可重新选择后重试。';
     }
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   void _resetImportProgress() {

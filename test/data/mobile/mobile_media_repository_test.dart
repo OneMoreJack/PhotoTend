@@ -398,6 +398,63 @@ void main() {
     },
   );
 
+  test(
+    'external import repository starts and reads background import batch',
+    () async {
+      const channel = MethodChannelExternalImportRepository.channel;
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            if (call.method == 'startBackgroundImport') {
+              return true;
+            }
+            if (call.method == 'getBackgroundImportStatus') {
+              return {
+                'running': false,
+                'totalCount': 2,
+                'completedCount': 2,
+                'importedIds': ['a'],
+                'failedIds': ['b'],
+              };
+            }
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final repo = MethodChannelExternalImportRepository();
+      final started = await repo.startBackgroundImport([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+      ], albumTarget: const ImportAlbumTarget.systemLibrary());
+      final status = await repo.getBackgroundImportStatus();
+
+      expect(started, isTrue);
+      expect(status?.running, isFalse);
+      expect(status?.totalCount, 2);
+      expect(status?.completedCount, 2);
+      expect(status?.importedIds, {'a'});
+      expect(status?.failedIds, {'b'});
+      final args = calls.first.arguments as Map<dynamic, dynamic>;
+      expect(args['items'], [
+        {
+          'id': 'a',
+          'sourceUri': 'content://doc/a',
+          'displayName': 'a.jpg',
+          'type': 'photo',
+        },
+      ]);
+      expect(args['useSystemLibrary'], isTrue);
+    },
+  );
+
   test('mobile media repository fetches user albums from platform', () async {
     const channel = MethodChannelMobileMediaRepository.channel;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

@@ -16,6 +16,7 @@ import 'package:rephoto/features/media/widgets/media_thumbnail_strip.dart';
 import 'package:rephoto/features/media/widgets/video_tile.dart';
 import 'package:rephoto/features/settings/settings_page.dart';
 import 'package:rephoto/features/trash/trash_page.dart';
+import 'package:rephoto/l10n/app_localizations.dart';
 import 'package:rephoto/theme/huashu_theme.dart';
 import 'package:video_player/video_player.dart';
 
@@ -303,6 +304,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       key: const Key('media-browser-page'),
       animation: _controller,
       builder: (context, _) {
+        final localizations = AppLocalizations.of(context);
         final currentMedia = _controller.currentMedia;
         final backgroundProvider = currentMedia?.type == MediaType.photo
             ? _buildImageProvider(
@@ -328,7 +330,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 elevation: 0,
                 titleSpacing: 0,
                 leading: IconButton(
-                  tooltip: 'Back',
+                  tooltip: localizations.backTooltip,
                   icon: const Icon(Icons.arrow_back_rounded, size: 28),
                   onPressed: () => Navigator.of(context).maybePop(),
                 ),
@@ -336,7 +338,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 actions: [
                   IconButton(
                     onPressed: _openTrash,
-                    tooltip: 'Trash',
+                    tooltip: localizations.trashTitle,
                     icon: Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -715,6 +717,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   }
 
   Widget _buildBottomActionBar() {
+    final localizations = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(42, 6, 42, 14),
       color: Colors.transparent,
@@ -776,7 +779,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   child: _buildBottomActionIcon(
                     key: const Key('browser-info-btn'),
                     icon: Icons.info_outline_rounded,
-                    tooltip: 'Info',
+                    tooltip: localizations.infoTooltip,
                     active: false,
                     onTap: _showMediaInfoSheet,
                   ),
@@ -798,6 +801,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
+        final localizations = AppLocalizations.of(sheetContext);
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
@@ -808,7 +812,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   key: const Key('open-in-gallery-btn'),
                   enabled: canOpenGallery,
                   leading: const Icon(Icons.ios_share_rounded),
-                  title: const Text('Open in gallery'),
+                  title: Text(localizations.openInGallery),
                   onTap: canOpenGallery
                       ? () {
                           Navigator.of(sheetContext).pop();
@@ -821,7 +825,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                     key: const Key('import-folder-btn'),
                     enabled: !_isImporting,
                     leading: const Icon(Icons.folder_open_outlined),
-                    title: const Text('Import Folder'),
+                    title: Text(localizations.importFolder),
                     onTap: _isImporting
                         ? null
                         : () {
@@ -832,7 +836,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                 ListTile(
                   key: const Key('browser-settings-btn'),
                   leading: const Icon(Icons.settings_outlined),
-                  title: const Text('Settings'),
+                  title: Text(localizations.settingsTitle),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
                     unawaited(_openSettings());
@@ -1540,6 +1544,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   }
 
   Widget _buildEndStatusPreview() {
+    final localizations = AppLocalizations.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -1562,10 +1567,10 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   ),
                 ),
                 const SizedBox(height: 32),
-                const Text(
-                  '当前月份已经浏览完毕',
+                Text(
+                  localizations.monthCompleteTitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 18,
                     color: HuashuColors.ink,
                     fontWeight: FontWeight.w600,
@@ -1573,10 +1578,10 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  '这个月的照片和视频都看完了',
+                Text(
+                  localizations.monthCompleteSubtitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     color: HuashuColors.muted,
                     height: 1.5,
@@ -1587,9 +1592,12 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   key: const Key('end-replay-button'),
                   onPressed: () => _controller.resetRandomPool(),
                   icon: const Icon(Icons.refresh_rounded, size: 20),
-                  label: const Text(
-                    '再看一遍',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  label: Text(
+                    localizations.replay,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: HuashuColors.ink,
@@ -1614,6 +1622,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   }
 
   Drawer _buildSideMenu() {
+    final localizations = AppLocalizations.of(context);
     return Drawer(
       backgroundColor: Colors.transparent,
       child: ClipRect(
@@ -1637,28 +1646,13 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
                   ),
                   Divider(color: HuashuColors.ink.withValues(alpha: 0.1)),
                   ListTile(
-                    leading: const Icon(Icons.shuffle, color: HuashuColors.ink),
-                    title: const Text(
-                      'Reset Random Pool',
-                      style: TextStyle(color: HuashuColors.ink),
-                    ),
-                    subtitle: const Text(
-                      'Start a new random round for remaining media',
-                      style: TextStyle(color: HuashuColors.muted),
-                    ),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      _controller.resetRandomPool();
-                    },
-                  ),
-                  ListTile(
                     leading: const Icon(
                       Icons.settings,
                       color: HuashuColors.ink,
                     ),
-                    title: const Text(
-                      'Settings',
-                      style: TextStyle(color: HuashuColors.ink),
+                    title: Text(
+                      localizations.settingsTitle,
+                      style: const TextStyle(color: HuashuColors.ink),
                     ),
                     onTap: _openSettingsFromDrawer,
                   ),
@@ -1677,17 +1671,16 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
   }
 
   Future<void> _openSettings() async {
-    final action = await Navigator.of(context).push<SettingsAction>(
+    final localeScope = RePhotoLocaleScope.maybeOf(context);
+    await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => SettingsPage(deletionStats: _controller.deletionStats),
+        builder: (_) => SettingsPage(
+          deletionStats: _controller.deletionStats,
+          selectedLanguage: localeScope?.language ?? AppLanguage.zh,
+          onLanguageChanged: localeScope?.setLanguage,
+        ),
       ),
     );
-    if (!mounted || action == null) {
-      return;
-    }
-    if (action == SettingsAction.resetRandomPool) {
-      _controller.resetRandomPool();
-    }
   }
 
   Future<void> _openTrash() async {

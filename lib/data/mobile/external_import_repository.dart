@@ -42,6 +42,22 @@ class ExternalImportScanPage {
   final bool hasMore;
 }
 
+class ExternalImportBatchStatus {
+  const ExternalImportBatchStatus({
+    required this.running,
+    required this.totalCount,
+    required this.completedCount,
+    required this.importedIds,
+    required this.failedIds,
+  });
+
+  final bool running;
+  final int totalCount;
+  final int completedCount;
+  final Set<String> importedIds;
+  final Set<String> failedIds;
+}
+
 class ImportAlbumTarget {
   const ImportAlbumTarget({
     required this.name,
@@ -93,6 +109,11 @@ abstract class ExternalImportRepository {
     ExternalImportItem item, {
     required ImportAlbumTarget albumTarget,
   });
+  Future<bool> startBackgroundImport(
+    List<ExternalImportItem> items, {
+    required ImportAlbumTarget albumTarget,
+  });
+  Future<ExternalImportBatchStatus?> getBackgroundImportStatus();
 }
 
 class MethodChannelExternalImportRepository
@@ -225,6 +246,57 @@ class MethodChannelExternalImportRepository
     return result ?? '';
   }
 
+  @override
+  Future<bool> startBackgroundImport(
+    List<ExternalImportItem> items, {
+    required ImportAlbumTarget albumTarget,
+  }) async {
+    if (items.isEmpty) return false;
+    try {
+      return await channel.invokeMethod<bool>(
+            'startBackgroundImport',
+            <String, dynamic>{
+              'items': items
+                  .map(
+                    (item) => <String, dynamic>{
+                      'id': item.id,
+                      'sourceUri': item.pathOrUri,
+                      'displayName': item.displayName,
+                      'type': item.type == MediaType.video ? 'video' : 'photo',
+                    },
+                  )
+                  .toList(growable: false),
+              if (!albumTarget.systemLibrary) 'albumName': albumTarget.name,
+              if (albumTarget.relativePath != null)
+                'albumRelativePath': albumTarget.relativePath,
+              'useSystemLibrary': albumTarget.systemLibrary,
+            },
+          ) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  @override
+  Future<ExternalImportBatchStatus?> getBackgroundImportStatus() async {
+    try {
+      final raw = await channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getBackgroundImportStatus',
+      );
+      if (raw == null) return null;
+      return ExternalImportBatchStatus(
+        running: raw['running'] == true,
+        totalCount: _intFromRaw(raw['totalCount']) ?? 0,
+        completedCount: _intFromRaw(raw['completedCount']) ?? 0,
+        importedIds: _stringSetFromRaw(raw['importedIds']),
+        failedIds: _stringSetFromRaw(raw['failedIds']),
+      );
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   ExternalImportRoot _rootFromRaw(Map<dynamic, dynamic> raw) {
     return ExternalImportRoot(
       id: (raw['id'] ?? '').toString(),
@@ -259,6 +331,11 @@ class MethodChannelExternalImportRepository
       String value => int.tryParse(value),
       _ => null,
     };
+  }
+
+  Set<String> _stringSetFromRaw(Object? raw) {
+    if (raw is! List<dynamic>) return <String>{};
+    return raw.map((value) => value.toString()).toSet();
   }
 }
 
@@ -360,6 +437,19 @@ class FakeExternalImportRepository implements ExternalImportRepository {
     importedAlbumNames.add(albumTarget.name);
     importedAlbumTargets.add(albumTarget);
     return 'content://media/imported/${item.id}';
+  }
+
+  @override
+  Future<bool> startBackgroundImport(
+    List<ExternalImportItem> items, {
+    required ImportAlbumTarget albumTarget,
+  }) async {
+    return false;
+  }
+
+  @override
+  Future<ExternalImportBatchStatus?> getBackgroundImportStatus() async {
+    return null;
   }
 
   bool _isRawImportItem(ExternalImportItem item) {

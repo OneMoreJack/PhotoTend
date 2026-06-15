@@ -365,6 +365,63 @@ void main() {
       expect(controller.importTotalCount, 2);
     },
   );
+
+  test(
+    'controller uses native background import batch when available',
+    () async {
+      final repo = BackgroundBatchFakeExternalImportRepository([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+        ExternalImportItem(
+          id: 'b',
+          type: MediaType.photo,
+          displayName: 'b.jpg',
+          pathOrUri: 'content://doc/b',
+        ),
+      ]);
+      final controller = ImportController(repository: repo);
+
+      await controller.refresh();
+      controller.selectAllPending();
+      await controller.importSelected();
+
+      expect(repo.backgroundImportIds, ['a', 'b']);
+      expect(repo.importedIds, isEmpty);
+      expect(controller.statusFor('a'), ImportItemStatus.imported);
+      expect(controller.statusFor('b'), ImportItemStatus.failed);
+      expect(controller.selectedIds, {'b'});
+      expect(controller.importTotalCount, 2);
+      expect(controller.importCompletedCount, 2);
+      expect(controller.statusMessage, '部分照片导入失败，可重新选择后重试。');
+    },
+  );
+
+  test(
+    'controller resumes a running native background import after refresh',
+    () async {
+      final repo = ResumingBackgroundBatchFakeExternalImportRepository([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+        ),
+      ]);
+      final controller = ImportController(repository: repo);
+
+      await controller.refresh();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(controller.statusFor('a'), ImportItemStatus.imported);
+      expect(controller.importTotalCount, 1);
+      expect(controller.importCompletedCount, 1);
+      expect(controller.isImporting, isFalse);
+    },
+  );
 }
 
 class PagingFakeExternalImportRepository extends FakeExternalImportRepository {
@@ -384,6 +441,61 @@ class PagingFakeExternalImportRepository extends FakeExternalImportRepository {
       offset: offset,
       limit: limit,
       includeRaw: includeRaw,
+    );
+  }
+}
+
+class BackgroundBatchFakeExternalImportRepository
+    extends FakeExternalImportRepository {
+  BackgroundBatchFakeExternalImportRepository(super.items);
+
+  final List<String> backgroundImportIds = <String>[];
+
+  @override
+  Future<bool> startBackgroundImport(
+    List<ExternalImportItem> items, {
+    required ImportAlbumTarget albumTarget,
+  }) async {
+    backgroundImportIds.addAll(items.map((item) => item.id));
+    return true;
+  }
+
+  @override
+  Future<ExternalImportBatchStatus?> getBackgroundImportStatus() async {
+    return const ExternalImportBatchStatus(
+      running: false,
+      totalCount: 2,
+      completedCount: 2,
+      importedIds: {'a'},
+      failedIds: {'b'},
+    );
+  }
+}
+
+class ResumingBackgroundBatchFakeExternalImportRepository
+    extends FakeExternalImportRepository {
+  ResumingBackgroundBatchFakeExternalImportRepository(super.items);
+
+  var statusReads = 0;
+
+  @override
+  Future<ExternalImportBatchStatus?> getBackgroundImportStatus() async {
+    statusReads += 1;
+    if (statusReads == 1) {
+      return const ExternalImportBatchStatus(
+        running: true,
+        totalCount: 1,
+        completedCount: 0,
+        importedIds: {},
+        failedIds: {},
+      );
+    }
+    return const ExternalImportBatchStatus(
+      running: false,
+      totalCount: 1,
+      completedCount: 1,
+      importedIds: {'a'},
+      failedIds: {},
     );
   }
 }

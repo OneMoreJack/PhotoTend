@@ -7,6 +7,7 @@ import 'package:rephoto/domain/models/media_item.dart';
 import 'package:rephoto/domain/services/permanent_delete_service.dart';
 import 'package:rephoto/features/media/widgets/video_tile.dart';
 import 'package:rephoto/features/trash/trash_controller.dart';
+import 'package:rephoto/l10n/app_localizations.dart';
 import 'package:rephoto/theme/huashu_snack_bar.dart';
 import 'package:rephoto/theme/huashu_theme.dart';
 
@@ -60,6 +61,7 @@ class _TrashPageState extends State<TrashPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
@@ -76,12 +78,12 @@ class _TrashPageState extends State<TrashPage> {
               backgroundColor: HuashuColors.paper,
               scrolledUnderElevation: 0,
               leading: IconButton(
-                tooltip: 'Back',
+                tooltip: localizations.backTooltip,
                 icon: const Icon(Icons.arrow_back_rounded),
                 color: HuashuColors.accent,
                 onPressed: _closeWithResult,
               ),
-              title: const Text('Trash'),
+              title: Text(localizations.trashTitle),
               titleTextStyle: const TextStyle(
                 color: HuashuColors.ink,
                 fontSize: 28,
@@ -280,8 +282,8 @@ class _TrashPageState extends State<TrashPage> {
         'Permanently deleted $s item(s), failed $f item(s). Retry from trash.',
     };
     final snackBar = failed == 0
-        ? HuashuSnackBars.success(message)
-        : SnackBar(content: Text(message));
+        ? HuashuSnackBars.success(context, message)
+        : HuashuSnackBars.message(context, message);
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
@@ -685,6 +687,7 @@ class _TrashEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(36, 0, 36, 72),
@@ -706,10 +709,10 @@ class _TrashEmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
-              'Trash is empty',
+            Text(
+              localizations.trashEmptyTitle,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: HuashuColors.ink,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
@@ -717,10 +720,10 @@ class _TrashEmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Photos you remove while browsing will wait here before they are permanently deleted.',
+            Text(
+              localizations.trashEmptySubtitle,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: HuashuColors.muted,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,

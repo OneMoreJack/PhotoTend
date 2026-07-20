@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Rephoto</string>
+	<string>PhotoTend</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,8 +46,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>RePhoto needs photo library access to organize your photos and videos.</string>
+	<string>PhotoTend needs photo library access to organize your photos and videos.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>RePhoto needs permission to remove items you confirm for permanent deletion.</string>
+	<string>PhotoTend needs permission to remove items you confirm for permanent deletion.</string>
 </dict>
 </plist>

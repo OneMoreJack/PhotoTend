@@ -2097,7 +2097,7 @@ class MainActivity : FlutterActivity() {
             ?.trim()
             ?.trim('/')
             ?.takeIf { it.isNotBlank() }
-            ?: "RePhoto"
+            ?: "PhotoTend"
         return "$baseDir/$safeAlbumName"
     }
 
@@ -2137,7 +2137,7 @@ class MainActivity : FlutterActivity() {
 
     private fun sanitizeDisplayName(displayName: String, mediaType: String): String {
         val name = File(displayName).name.trim().takeUnless { it.isEmpty() }
-            ?: if (mediaType == "video") "RePhoto-import.mp4" else "RePhoto-import.jpg"
+            ?: if (mediaType == "video") "PhotoTend-import.mp4" else "PhotoTend-import.jpg"
         return name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
     }
 

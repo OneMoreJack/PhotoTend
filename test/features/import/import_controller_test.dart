@@ -34,6 +34,7 @@ void main() {
     expect(controller.statusFor('b'), ImportItemStatus.imported);
     expect(controller.completionMessage, '导入完成');
     expect(repo.importedIds, ['a', 'b']);
+    expect(repo.importedAlbumNames, ['PhotoTend', 'PhotoTend']);
   });
 
   test('controller tracks total import progress', () async {

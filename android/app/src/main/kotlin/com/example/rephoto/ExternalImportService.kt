@@ -262,7 +262,7 @@ private object ExternalImportCopier {
         val baseDir = if (mediaType == "video") Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
         if (useSystemLibrary) return baseDir
         albumRelativePath?.trim()?.trim('/')?.takeIf { it.isNotBlank() }?.let { return it }
-        return "$baseDir/${albumName?.trim()?.trim('/')?.takeIf { it.isNotBlank() } ?: "RePhoto"}"
+        return "$baseDir/${albumName?.trim()?.trim('/')?.takeIf { it.isNotBlank() } ?: "PhotoTend"}"
     }
 
     private fun mimeTypeFromName(displayName: String): String? {
@@ -285,7 +285,7 @@ private object ExternalImportCopier {
     }
 
     private fun sanitizeDisplayName(displayName: String, mediaType: String): String {
-        val fallback = if (mediaType == "video") "RePhoto-import.mp4" else "RePhoto-import.jpg"
+        val fallback = if (mediaType == "video") "PhotoTend-import.mp4" else "PhotoTend-import.jpg"
         return File(displayName).name.trim().takeIf { it.isNotEmpty() }?.replace(Regex("[\\\\/:*?\"<>|]"), "_") ?: fallback
     }
 

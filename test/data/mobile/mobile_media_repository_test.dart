@@ -323,8 +323,8 @@ void main() {
       items.single,
       albumTarget: ImportAlbumTarget.existing(
         id: 'album-1',
-        name: 'RePhoto',
-        relativePath: 'Pictures/RePhoto',
+        name: 'PhotoTend',
+        relativePath: 'Pictures/PhotoTend',
       ),
     );
     final fullBytes = await repo.fetchFullImageData(items.single.pathOrUri);
@@ -352,11 +352,11 @@ void main() {
     ]);
     expect((calls[2].arguments as Map)['rootId'], 'sd-1234');
     expect((calls[5].arguments as Map)['sourceUri'], items.single.pathOrUri);
-    expect((calls[5].arguments as Map)['albumName'], 'RePhoto');
+    expect((calls[5].arguments as Map)['albumName'], 'PhotoTend');
     expect((calls[5].arguments as Map)['albumId'], 'album-1');
     expect(
       (calls[5].arguments as Map)['albumRelativePath'],
-      'Pictures/RePhoto',
+      'Pictures/PhotoTend',
     );
     expect((calls[5].arguments as Map)['useSystemLibrary'], isFalse);
     expect((calls[7].arguments as Map)['sourceUri'], items.single.pathOrUri);

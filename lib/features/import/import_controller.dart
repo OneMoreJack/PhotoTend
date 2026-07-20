@@ -310,7 +310,7 @@ class ImportController extends ChangeNotifier {
   }
 
   Future<void> importPendingOrSelected({
-    String albumName = 'RePhoto',
+    String albumName = 'PhotoTend',
     ImportAlbumTarget? albumTarget,
   }) async {
     if (selectedCount == 0) {
@@ -320,7 +320,7 @@ class ImportController extends ChangeNotifier {
   }
 
   Future<void> importSelected({
-    String albumName = 'RePhoto',
+    String albumName = 'PhotoTend',
     ImportAlbumTarget? albumTarget,
   }) async {
     if (isImporting || _selectedIds.isEmpty) return;

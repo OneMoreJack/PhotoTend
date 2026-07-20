@@ -24,6 +24,7 @@ class VideoTile extends StatefulWidget {
     required this.uri,
     this.thumbnailProvider,
     this.preloadedController,
+    this.autoPlay = false,
     this.showOverlayControls = true,
     this.enableLongPressBoost = true,
     this.onScrubStart,
@@ -33,6 +34,7 @@ class VideoTile extends StatefulWidget {
   final String uri;
   final ImageProvider<Object>? thumbnailProvider;
   final VideoPlayerController? preloadedController;
+  final bool autoPlay;
   final bool showOverlayControls;
   final bool enableLongPressBoost;
   final VoidCallback? onScrubStart;
@@ -60,7 +62,8 @@ class _VideoTileState extends State<VideoTile> {
   void didUpdateWidget(covariant VideoTile oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.uri == widget.uri &&
-        oldWidget.preloadedController == widget.preloadedController) {
+        oldWidget.preloadedController == widget.preloadedController &&
+        oldWidget.autoPlay == widget.autoPlay) {
       return;
     }
     _configureController();
@@ -248,6 +251,11 @@ class _VideoTileState extends State<VideoTile> {
     required int version,
   }) async {
     if (controller.value.isInitialized) {
+      if (widget.autoPlay) {
+        await controller.play();
+      } else {
+        await controller.pause();
+      }
       if (mounted && version == _configureVersion) {
         setState(() => _isInitializing = false);
       }
@@ -261,7 +269,11 @@ class _VideoTileState extends State<VideoTile> {
       await controller.initialize();
       await controller.setLooping(false);
       await controller.setPlaybackSpeed(1.0);
-      await controller.pause();
+      if (widget.autoPlay) {
+        await controller.play();
+      } else {
+        await controller.pause();
+      }
     } catch (_) {
       if (mounted && version == _configureVersion) {
         setState(() => _isInitializing = false);

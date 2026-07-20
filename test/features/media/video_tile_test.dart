@@ -30,6 +30,20 @@ void main() {
     expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
   });
 
+  testWidgets('video autoplays after initialization when enabled', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: VideoTile(uri: 'file:///tmp/a.mp4', autoPlay: true),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(fakePlatform.playCalls, 1);
+  });
+
   testWidgets('video time label is hidden until progress is dragged', (
     tester,
   ) async {

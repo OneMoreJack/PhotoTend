@@ -2180,6 +2180,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       final videoTile = VideoTile(
         uri: playableUri ?? playableLivePhotoUri,
         thumbnailProvider: thumbnailProvider,
+        autoPlay: interactive,
         preloadedController: _takePreloadedController(
           playableUri ?? playableLivePhotoUri,
         ),
@@ -2216,6 +2217,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
       final videoTile = VideoTile(
         uri: playableUri ?? media.pathOrUri!,
         thumbnailProvider: thumbnailProvider,
+        autoPlay: true,
         preloadedController: _takePreloadedController(
           playableUri ?? media.pathOrUri!,
         ),

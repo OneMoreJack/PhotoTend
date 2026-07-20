@@ -1380,7 +1380,9 @@ void main() {
     },
   );
 
-  testWidgets('live photo preview renders playable video tile', (tester) async {
+  testWidgets('live photo preview renders an autoplaying video tile', (
+    tester,
+  ) async {
     VideoPlayerPlatform.instance = _HomeFakeVideoPlayerPlatform();
     final controller = HomeController(
       initialMediaItems: [
@@ -1401,7 +1403,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.byType(VideoTile), findsOneWidget);
-    expect(find.byKey(const Key('video-play-overlay')), findsOneWidget);
+    expect(tester.widget<VideoTile>(find.byType(VideoTile)).autoPlay, isTrue);
+    expect(find.byKey(const Key('video-play-overlay')), findsNothing);
   });
 
   testWidgets(

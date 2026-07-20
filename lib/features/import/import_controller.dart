@@ -14,6 +14,7 @@ class ImportController extends ChangeNotifier {
   final List<ExternalImportItem> _trashedItems = <ExternalImportItem>[];
   final Set<String> _selectedIds = <String>{};
   final Map<String, ImportItemStatus> _statuses = <String, ImportItemStatus>{};
+  List<ExternalImportItem>? _activeImportSelection;
   int _scanSession = 0;
   bool _disposed = false;
 
@@ -31,11 +32,13 @@ class ImportController extends ChangeNotifier {
   List<ExternalImportItem> get items => List.unmodifiable(_visibleItems);
   List<ExternalImportItem> get trashedItems => List.unmodifiable(_trashedItems);
   Set<String> get selectedIds => Set.unmodifiable(_selectedIds);
-  int get selectedCount => _selectedIds.length;
+  int get selectedCount =>
+      _activeImportSelection?.length ?? _selectedIds.length;
   int get trashCount => _trashedItems.length;
   int get totalSizeBytes => _sumSizeBytes(items);
   int get selectedSizeBytes => _sumSizeBytes(
-    _visibleItems.where((item) => _selectedIds.contains(item.id)),
+    _activeImportSelection ??
+        _visibleItems.where((item) => _selectedIds.contains(item.id)),
   );
   double get importProgress {
     if (importTotalCount <= 0) return 0;
@@ -322,17 +325,17 @@ class ImportController extends ChangeNotifier {
   }) async {
     if (isImporting || _selectedIds.isEmpty) return;
     final target = albumTarget ?? ImportAlbumTarget.named(albumName);
+    final items = _visibleItems
+        .where((item) => _selectedIds.contains(item.id))
+        .toList(growable: false);
+    if (items.isEmpty) return;
+    final ids = items.map((item) => item.id).toList(growable: false);
     isImporting = true;
     completionMessage = null;
-    importTotalCount = _selectedIds.length;
+    _activeImportSelection = items;
+    importTotalCount = items.length;
     importCompletedCount = 0;
     notifyListeners();
-    final byId = {for (final item in _visibleItems) item.id: item};
-    final ids = List<String>.from(_selectedIds);
-    final items = ids
-        .map((id) => byId[id])
-        .whereType<ExternalImportItem>()
-        .toList();
     for (final item in items) {
       _statuses[item.id] = ImportItemStatus.importing;
     }
@@ -342,8 +345,7 @@ class ImportController extends ChangeNotifier {
       return;
     }
     for (final id in ids) {
-      final item = byId[id];
-      if (item == null) continue;
+      final item = items.firstWhere((item) => item.id == id);
       _statuses[id] = ImportItemStatus.importing;
       notifyListeners();
       try {
@@ -384,6 +386,14 @@ class ImportController extends ChangeNotifier {
     final status = await _repository.getBackgroundImportStatus();
     if (_disposed || status == null || !status.running) return;
     isImporting = true;
+    _activeImportSelection = _visibleItems
+        .where(
+          (item) =>
+              status.importedIds.contains(item.id) ||
+              status.failedIds.contains(item.id) ||
+              _selectedIds.contains(item.id),
+        )
+        .toList(growable: false);
     _applyBackgroundImportStatus(status);
     notifyListeners();
     await _trackBackgroundImport(_visibleItems.map((item) => item.id).toList());
@@ -406,6 +416,7 @@ class ImportController extends ChangeNotifier {
 
   void _finishImport() {
     isImporting = false;
+    _activeImportSelection = null;
     if (_selectedIds.isEmpty) {
       completionMessage = '导入完成';
     } else {

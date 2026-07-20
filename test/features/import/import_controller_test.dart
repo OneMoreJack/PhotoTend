@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rephoto/data/mobile/external_import_repository.dart';
 import 'package:rephoto/domain/models/media_item.dart';
@@ -61,6 +63,73 @@ void main() {
     expect(controller.importCompletedCount, 2);
     expect(controller.importProgress, 1);
   });
+
+  test('controller imports selected items in visible list order', () async {
+    final repo = FakeExternalImportRepository([
+      ExternalImportItem(
+        id: 'newer',
+        type: MediaType.photo,
+        displayName: 'newer.jpg',
+        pathOrUri: 'content://doc/newer',
+        createdAt: DateTime(2026, 6, 15, 10),
+      ),
+      ExternalImportItem(
+        id: 'older',
+        type: MediaType.photo,
+        displayName: 'older.jpg',
+        pathOrUri: 'content://doc/older',
+        createdAt: DateTime(2026, 6, 14, 10),
+      ),
+    ]);
+    final controller = ImportController(repository: repo);
+
+    await controller.refresh();
+    controller.toggleSelection('older');
+    controller.toggleSelection('newer');
+    await controller.importSelected();
+
+    expect(controller.items.map((item) => item.id), ['newer', 'older']);
+    expect(repo.importedIds, ['newer', 'older']);
+  });
+
+  test(
+    'controller keeps selected import summary stable while importing',
+    () async {
+      final repo = BlockingImportFakeExternalImportRepository([
+        ExternalImportItem(
+          id: 'a',
+          type: MediaType.photo,
+          displayName: 'a.jpg',
+          pathOrUri: 'content://doc/a',
+          sizeBytes: 100,
+        ),
+        ExternalImportItem(
+          id: 'b',
+          type: MediaType.photo,
+          displayName: 'b.jpg',
+          pathOrUri: 'content://doc/b',
+          sizeBytes: 200,
+        ),
+      ]);
+      final controller = ImportController(repository: repo);
+
+      await controller.refresh();
+      controller.selectAllPending();
+      final importFuture = controller.importSelected();
+      await repo.completeNextImport();
+
+      expect(controller.selectedIds, {'b'});
+      expect(controller.selectedCount, 2);
+      expect(controller.selectedSizeBytes, 300);
+
+      await repo.completeNextImport();
+      await importFuture;
+
+      expect(controller.selectedIds, isEmpty);
+      expect(controller.selectedCount, 0);
+      expect(controller.selectedSizeBytes, 0);
+    },
+  );
 
   test(
     'controller keeps previously imported items selectable after refresh',
@@ -442,6 +511,32 @@ class PagingFakeExternalImportRepository extends FakeExternalImportRepository {
       limit: limit,
       includeRaw: includeRaw,
     );
+  }
+}
+
+class BlockingImportFakeExternalImportRepository
+    extends FakeExternalImportRepository {
+  BlockingImportFakeExternalImportRepository(super.items);
+
+  final List<Completer<void>> _imports = <Completer<void>>[];
+
+  @override
+  Future<String> importExternalMedia(
+    ExternalImportItem item, {
+    required ImportAlbumTarget albumTarget,
+  }) async {
+    final completer = Completer<void>();
+    _imports.add(completer);
+    await completer.future;
+    return super.importExternalMedia(item, albumTarget: albumTarget);
+  }
+
+  Future<void> completeNextImport() async {
+    while (_imports.isEmpty) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    _imports.removeAt(0).complete();
+    await Future<void>.delayed(Duration.zero);
   }
 }
 

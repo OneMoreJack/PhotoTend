@@ -1738,7 +1738,8 @@ class MainActivity : FlutterActivity() {
             compareBy<NativeDocumentChild> { if (it.isDirectory) 0 else 1 }
                 .thenBy { if (it.isDirectory) importDirectoryPriority(it.name) else 0 }
                 .thenByDescending { if (it.isDirectory) 0L else it.modifiedAtMillis }
-                .thenBy { it.name.lowercase(Locale.US) }
+                .thenByDescending { if (it.isDirectory) "" else it.name.lowercase(Locale.US) }
+                .thenBy { if (it.isDirectory) it.name.lowercase(Locale.US) else "" }
         )
         for (child in orderedChildren) {
             if (items.size >= maxItems) return true

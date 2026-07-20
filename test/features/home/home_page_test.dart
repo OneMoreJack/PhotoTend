@@ -12,6 +12,7 @@ import 'package:rephoto/features/home/home_controller.dart';
 import 'package:rephoto/features/home/home_page.dart';
 import 'package:rephoto/features/media/media_browser_page.dart';
 import 'package:rephoto/features/media/widgets/video_tile.dart';
+import 'package:rephoto/l10n/app_localizations.dart';
 import 'package:rephoto/theme/huashu_theme.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
@@ -191,7 +192,7 @@ void main() {
       MaterialApp(home: HomePage(controller: controller)),
     );
 
-    expect(find.text('RePhoto'), findsOneWidget);
+    expect(find.text('理好相册'), findsOneWidget);
     expect(find.byTooltip('设置'), findsOneWidget);
 
     await tester.tap(find.byTooltip('设置'));
@@ -200,6 +201,31 @@ void main() {
     expect(find.text('Reset Random Pool'), findsNothing);
     expect(find.text('Library rhythm'), findsNothing);
     expect(find.text('Recovered space'), findsNothing);
+  });
+
+  testWidgets('home header uses the English PhotoTend brand', (tester) async {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'recent-en',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 5, 13),
+        ),
+      ],
+      nowProvider: () => DateTime(2026, 5, 14),
+      seed: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: HomePage(controller: controller),
+      ),
+    );
+
+    expect(find.text('PhotoTend'), findsOneWidget);
   });
 
   testWidgets('monthly completion keeps month title and only replay action', (
@@ -1226,7 +1252,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('RePhoto'), findsOneWidget);
+    expect(find.text('理好相册'), findsOneWidget);
     expect(find.textContaining('m1'), findsNothing);
   });
 
@@ -1471,7 +1497,7 @@ void main() {
       MaterialApp(home: MediaBrowserPage(controller: controller)),
     );
 
-    expect(find.text('RePhoto'), findsNothing);
+    expect(find.text('理好相册'), findsNothing);
     // When filter is 'All Time', no filter label in AppBar
     expect(find.text('All Time'), findsNothing);
   });

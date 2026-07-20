@@ -120,7 +120,7 @@ class AppLocalizationsEn extends AppLocalizations {
   const AppLocalizationsEn();
 
   @override
-  String get appTitle => 'RePhoto';
+  String get appTitle => 'PhotoTend';
 
   @override
   String get photosTab => 'Photos';
@@ -315,7 +315,7 @@ class AppLocalizationsZh extends AppLocalizations {
   const AppLocalizationsZh();
 
   @override
-  String get appTitle => 'RePhoto';
+  String get appTitle => '理好相册';
 
   @override
   String get photosTab => '照片';

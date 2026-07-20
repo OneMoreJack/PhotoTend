@@ -255,9 +255,9 @@ class _AlbumHomeHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 18),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
-              'RePhoto',
+              localizations.appTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

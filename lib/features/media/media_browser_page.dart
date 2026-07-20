@@ -475,7 +475,7 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
           queryStart != null) {
         return _formatMonthTitle(queryStart);
       }
-      return 'RePhoto';
+      return AppLocalizations.of(context).appTitle;
     }
     return _formatMonthTitle(createdAt);
   }
@@ -1634,9 +1634,9 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  const ListTile(
+                  ListTile(
                     title: Text(
-                      'RePhoto',
+                      localizations.appTitle,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,

@@ -26,6 +26,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.Locale
 
@@ -169,6 +170,14 @@ class MainActivity : FlutterActivity() {
                             result.success(null)
                         } else {
                             runAsync(result) { fetchPreviewImageData(pathOrUri) }
+                        }
+                    }
+                    "resolvePlayableMediaUri" -> {
+                        val pathOrUri = call.argument<String>("pathOrUri")
+                        if (pathOrUri.isNullOrBlank()) {
+                            result.success(null)
+                        } else {
+                            runAsync(result) { resolvePlayableMediaUri(pathOrUri) }
                         }
                     }
                     "openInGallery" -> {
@@ -570,7 +579,12 @@ class MainActivity : FlutterActivity() {
         val dateAddedColumnName = "date_added"
         val dataColumnName = "_data"
         val sizeColumnName = MediaStore.MediaColumns.SIZE
-        val projection = arrayOf(
+        val xmpColumnName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Images.Media.XMP
+        } else {
+            null
+        }
+        val projection = mutableListOf(
             MediaStore.MediaColumns._ID,
             mediaTypeColumnName,
             dateTakenColumnName,
@@ -578,6 +592,7 @@ class MainActivity : FlutterActivity() {
             dataColumnName,
             sizeColumnName,
         )
+        xmpColumnName?.let(projection::add)
         val selection = "$mediaTypeColumnName = ? OR $mediaTypeColumnName = ?"
         val selectionArgs = arrayOf(
             MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
@@ -590,7 +605,7 @@ class MainActivity : FlutterActivity() {
         try {
             contentResolver.query(
                 baseUri,
-                projection,
+                projection.toTypedArray(),
                 selection,
                 selectionArgs,
                 sortOrder,
@@ -601,6 +616,7 @@ class MainActivity : FlutterActivity() {
                 val dateAddedColumn = cursor.getColumnIndex(dateAddedColumnName)
                 val dataColumn = cursor.getColumnIndex(dataColumnName)
                 val sizeColumn = cursor.getColumnIndex(sizeColumnName)
+                val xmpColumn = xmpColumnName?.let(cursor::getColumnIndex) ?: -1
 
                 while (cursor.moveToNext()) {
                     val rowId = cursor.getLong(idColumn)
@@ -627,6 +643,11 @@ class MainActivity : FlutterActivity() {
                     val sizeBytes = readLong(cursor, sizeColumn)
                     val uri = contentUri.toString()
                     val pathOrUri = if (filePath.isNullOrBlank()) uri else filePath
+                    val motionPhotoXmp = if (type == "photo") {
+                        readMotionPhotoXmp(cursor, xmpColumn)
+                    } else {
+                        null
+                    }
 
                     items.add(
                         NativeMediaItem(
@@ -636,6 +657,7 @@ class MainActivity : FlutterActivity() {
                             locationKey = readCachedLocationKey("$type:$rowId"),
                             pathOrUri = pathOrUri,
                             sizeBytes = sizeBytes,
+                            motionPhotoXmp = motionPhotoXmp,
                         )
                     )
                 }
@@ -679,18 +701,26 @@ class MainActivity : FlutterActivity() {
         val dateAddedColumnName = "date_added"
         val dataColumnName = "_data"
         val sizeColumnName = MediaStore.MediaColumns.SIZE
-        val projection = arrayOf(
+        val xmpColumnName = if (
+            type == "photo" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        ) {
+            MediaStore.Images.Media.XMP
+        } else {
+            null
+        }
+        val projection = mutableListOf(
             MediaStore.MediaColumns._ID,
             dateTakenColumnName,
             dateAddedColumnName,
             dataColumnName,
             sizeColumnName,
         )
+        xmpColumnName?.let(projection::add)
         val items = mutableListOf<NativeMediaItem>()
         try {
             contentResolver.query(
                 baseUri,
-                projection,
+                projection.toTypedArray(),
                 null,
                 null,
                 "$dateTakenColumnName DESC, $dateAddedColumnName DESC",
@@ -700,6 +730,7 @@ class MainActivity : FlutterActivity() {
                 val dateAddedColumn = cursor.getColumnIndex(dateAddedColumnName)
                 val dataColumn = cursor.getColumnIndex(dataColumnName)
                 val sizeColumn = cursor.getColumnIndex(sizeColumnName)
+                val xmpColumn = xmpColumnName?.let(cursor::getColumnIndex) ?: -1
 
                 while (cursor.moveToNext()) {
                     val rowId = cursor.getLong(idColumn)
@@ -715,6 +746,7 @@ class MainActivity : FlutterActivity() {
                     val sizeBytes = readLong(cursor, sizeColumn)
                     val uri = contentUri.toString()
                     val pathOrUri = if (filePath.isNullOrBlank()) uri else filePath
+                    val motionPhotoXmp = readMotionPhotoXmp(cursor, xmpColumn)
                     items.add(
                         NativeMediaItem(
                             id = "$type:$rowId",
@@ -723,6 +755,7 @@ class MainActivity : FlutterActivity() {
                             locationKey = readCachedLocationKey("$type:$rowId"),
                             pathOrUri = pathOrUri,
                             sizeBytes = sizeBytes,
+                            motionPhotoXmp = motionPhotoXmp,
                         )
                     )
                 }
@@ -873,6 +906,109 @@ class MainActivity : FlutterActivity() {
         return ByteArrayOutputStream().use { output ->
             bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
             output.toByteArray()
+        }
+    }
+
+    private fun resolvePlayableMediaUri(pathOrUri: String): String? {
+        val uri = Uri.parse(pathOrUri)
+        if (uri.scheme != "motionphoto") {
+            return resolveContentUri(pathOrUri)?.toString() ?: pathOrUri
+        }
+
+        val source = uri.getQueryParameter("source") ?: return null
+        val videoLength = uri.getQueryParameter("videoLength")?.toLongOrNull()
+            ?.takeIf { it > 0L }
+            ?: return null
+        val sourceLength = motionPhotoSourceLength(source) ?: return null
+        val videoStart = sourceLength - videoLength
+        if (videoStart < 0L) return null
+
+        val outputDir = File(cacheDir, "motion_photos").apply { mkdirs() }
+        val output = File(outputDir, "${source.hashCode()}-$videoLength.mp4")
+        if (output.isFile && output.length() == videoLength) {
+            return Uri.fromFile(output).toString()
+        }
+
+        val temporary = File(outputDir, "${output.name}.tmp")
+        return try {
+            motionPhotoSourceStream(source)?.use { input ->
+                skipFully(input, videoStart)
+                FileOutputStream(temporary, false).use { target ->
+                    copyExactly(input, target, videoLength)
+                }
+            } ?: return null
+            if (temporary.length() != videoLength) {
+                temporary.delete()
+                return null
+            }
+            if (output.exists()) output.delete()
+            if (!temporary.renameTo(output)) {
+                temporary.delete()
+                return null
+            }
+            Uri.fromFile(output).toString()
+        } catch (error: Exception) {
+            temporary.delete()
+            Log.w(logTag, "Unable to extract Motion Photo video", error)
+            null
+        }
+    }
+
+    private fun motionPhotoSourceLength(source: String): Long? {
+        return try {
+            when {
+                !source.contains("://") -> File(source).length()
+                source.startsWith("file://") -> {
+                    Uri.parse(source).path?.let(::File)?.length()
+                }
+                else -> contentResolver.openAssetFileDescriptor(Uri.parse(source), "r")
+                    ?.use { descriptor -> descriptor.length.takeIf { it >= 0L } }
+            }
+        } catch (error: Exception) {
+            Log.d(logTag, "Unable to read Motion Photo length: ${error.message}")
+            null
+        }
+    }
+
+    private fun motionPhotoSourceStream(source: String): InputStream? {
+        return when {
+            !source.contains("://") -> File(source).inputStream()
+            source.startsWith("file://") -> {
+                val path = Uri.parse(source).path ?: return null
+                File(path).inputStream()
+            }
+            else -> contentResolver.openInputStream(Uri.parse(source))
+        }
+    }
+
+    private fun skipFully(input: InputStream, byteCount: Long) {
+        var remaining = byteCount
+        while (remaining > 0L) {
+            val skipped = input.skip(remaining)
+            if (skipped > 0L) {
+                remaining -= skipped
+            } else if (input.read() == -1) {
+                throw IllegalStateException("Motion Photo video offset exceeds file size")
+            } else {
+                remaining -= 1L
+            }
+        }
+    }
+
+    private fun copyExactly(
+        input: InputStream,
+        output: FileOutputStream,
+        byteCount: Long,
+    ) {
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var remaining = byteCount
+        while (remaining > 0L) {
+            val read = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+            if (read < 0) {
+                throw IllegalStateException("Motion Photo video data is truncated")
+            }
+            output.write(buffer, 0, read)
+            remaining -= read.toLong()
         }
     }
 
@@ -2332,6 +2468,17 @@ class MainActivity : FlutterActivity() {
         return cursor.getString(columnIndex)
     }
 
+    private fun readMotionPhotoXmp(
+        cursor: android.database.Cursor,
+        columnIndex: Int,
+    ): String? {
+        val xmp = readString(cursor, columnIndex) ?: return null
+        return xmp.takeIf {
+            it.contains("MotionPhoto", ignoreCase = true) ||
+                it.contains("MicroVideo", ignoreCase = true)
+        }
+    }
+
     private fun saveDeletionStats(args: Map<*, *>?) {
         localStatePrefs.edit()
             .putInt(deletionPhotoCountKey, intArg(args, "photoCount"))
@@ -2398,6 +2545,7 @@ class MainActivity : FlutterActivity() {
         val locationKey: String?,
         val pathOrUri: String,
         val sizeBytes: Long?,
+        val motionPhotoXmp: String? = null,
     ) {
         fun toMap(): Map<String, Any?> {
             return mapOf(
@@ -2408,6 +2556,7 @@ class MainActivity : FlutterActivity() {
                 "pathOrUri" to pathOrUri,
                 "sizeBytes" to sizeBytes,
                 "size" to sizeBytes,
+                "motionPhotoXmp" to motionPhotoXmp,
             )
         }
     }

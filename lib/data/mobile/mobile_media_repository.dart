@@ -1,6 +1,45 @@
 import 'package:flutter/services.dart';
 import 'package:rephoto/domain/models/media_item.dart';
 
+String? buildEmbeddedMotionPhotoUri({String? source, String? xmp}) {
+  if (source == null || source.isEmpty || xmp == null || xmp.isEmpty) {
+    return null;
+  }
+
+  int? videoLength;
+  final motionItem = RegExp(
+    r'''<[^>]*\bSemantic\s*=\s*["']MotionPhoto["'][^>]*>''',
+    caseSensitive: false,
+  ).firstMatch(xmp);
+  if (motionItem != null) {
+    final length = RegExp(
+      r'''\bLength\s*=\s*["'](\d+)["']''',
+      caseSensitive: false,
+    ).firstMatch(motionItem.group(0)!);
+    videoLength = int.tryParse(length?.group(1) ?? '');
+  }
+
+  videoLength ??= int.tryParse(
+    RegExp(
+          r'''\b(?:MicroVideoOffset|MotionPhotoVideoOffset|VideoOffset)\s*=\s*["'](\d+)["']''',
+          caseSensitive: false,
+        ).firstMatch(xmp)?.group(1) ??
+        '',
+  );
+  if (videoLength == null || videoLength <= 0) {
+    return null;
+  }
+
+  return Uri(
+    scheme: 'motionphoto',
+    host: 'embedded',
+    queryParameters: <String, String>{
+      'source': source,
+      'videoLength': '$videoLength',
+    },
+  ).toString();
+}
+
 class MediaAlbum {
   const MediaAlbum({
     required this.id,
@@ -265,7 +304,12 @@ class MethodChannelMobileMediaRepository implements MobileMediaRepository {
   String? _livePhotoVideoUriFromRaw(Map<dynamic, dynamic> raw) {
     final value = raw['livePhotoVideoUri'] ?? raw['motionVideoUri'];
     final text = value?.toString();
-    return text == null || text.isEmpty ? null : text;
+    if (text != null && text.isNotEmpty) {
+      return text;
+    }
+    final source = raw['pathOrUri']?.toString();
+    final xmp = raw['motionPhotoXmp']?.toString();
+    return buildEmbeddedMotionPhotoUri(source: source, xmp: xmp);
   }
 
   List<MediaItem> _mapMediaItems(List<dynamic>? result) {

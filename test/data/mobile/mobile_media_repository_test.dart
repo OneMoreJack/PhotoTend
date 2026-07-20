@@ -66,6 +66,14 @@ void main() {
                 'pathOrUri': 'content://media/video_1',
                 'size': '8192',
               },
+              {
+                'id': 'motion_1',
+                'type': 'photo',
+                'pathOrUri': 'content://media/motion_1',
+                'motionPhotoXmp':
+                    '<Container:Item Item:Semantic="MotionPhoto" '
+                    'Item:Length="12345"/>',
+              },
             ];
           }
           return null;
@@ -74,14 +82,18 @@ void main() {
     final repo = MethodChannelMobileMediaRepository();
     final items = await repo.fetchAllMediaItems();
 
-    expect(items.length, 2);
+    expect(items.length, 3);
     expect(items.first.type, MediaType.photo);
-    expect(items.last.type, MediaType.video);
+    expect(items[1].type, MediaType.video);
     expect(items.first.locationKey, 'CN/SH/XH');
     expect(items.first.sizeBytes, 4096);
     expect(items.first.livePhotoVideoUri, 'phlive://photo_1');
-    expect(items.last.pathOrUri, 'content://media/video_1');
-    expect(items.last.sizeBytes, 8192);
+    expect(items[1].pathOrUri, 'content://media/video_1');
+    expect(items[1].sizeBytes, 8192);
+    final motionUri = Uri.parse(items.last.livePhotoVideoUri!);
+    expect(motionUri.scheme, 'motionphoto');
+    expect(motionUri.queryParameters['source'], 'content://media/motion_1');
+    expect(motionUri.queryParameters['videoLength'], '12345');
   });
 
   test(

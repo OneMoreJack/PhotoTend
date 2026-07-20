@@ -2173,7 +2173,9 @@ class _MediaBrowserPageState extends State<MediaBrowserPage>
         mediaId: media.id,
       );
       final playableUri = _resolvedPlayableUris[playableLivePhotoUri];
-      final requiresResolution = playableLivePhotoUri.startsWith('phlive://');
+      final requiresResolution =
+          playableLivePhotoUri.startsWith('phlive://') ||
+          playableLivePhotoUri.startsWith('motionphoto://');
       if (requiresResolution && playableUri == null) {
         return _buildVideoPlaceholder(thumbnailProvider);
       }

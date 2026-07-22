@@ -425,7 +425,7 @@ class HomeController extends ChangeNotifier {
 
     _gestureSessionService.trashIds.removeWhere(ids.contains);
     _gestureSessionService.syncTrash(_gestureSessionService.trashIds);
-    _applyFilters();
+    _applyFiltersKeepingCurrent();
   }
 
   void toggleVideoOnlyMode() {

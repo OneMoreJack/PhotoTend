@@ -867,6 +867,38 @@ void main() {
     },
   );
 
+  test('emptying trash preserves position in monthly browsing', () {
+    final controller = HomeController(
+      initialMediaItems: [
+        MediaItem(
+          id: 'late',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 20),
+        ),
+        MediaItem(
+          id: 'middle',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 10),
+        ),
+        MediaItem(
+          id: 'early',
+          type: MediaType.photo,
+          createdAt: DateTime(2026, 4, 1),
+        ),
+      ],
+      seed: 1,
+    );
+    final month = controller.monthlyAlbumSummaryEntries.first;
+    controller.applyCollectionQuery(month.query);
+    controller.jumpToMedia('middle');
+    controller.updateTrash({'early'});
+
+    controller.removeMediaItems({'early'});
+
+    expect(controller.currentMediaId, 'middle');
+    expect(controller.filteredMediaIds, ['late', 'middle']);
+  });
+
   test('delete keeps queued next media so remaining item is still shown', () {
     final now = DateTime.now();
     final controller = HomeController(

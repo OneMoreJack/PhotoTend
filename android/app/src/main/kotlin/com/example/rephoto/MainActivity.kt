@@ -579,20 +579,18 @@ class MainActivity : FlutterActivity() {
         val dateAddedColumnName = "date_added"
         val dataColumnName = "_data"
         val sizeColumnName = MediaStore.MediaColumns.SIZE
-        val xmpColumnName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Images.Media.XMP
-        } else {
-            null
-        }
-        val projection = mutableListOf(
-            MediaStore.MediaColumns._ID,
-            mediaTypeColumnName,
-            dateTakenColumnName,
-            dateAddedColumnName,
-            dataColumnName,
-            sizeColumnName,
+        val projection = buildMediaProjection(
+            baseColumns = listOf(
+                MediaStore.MediaColumns._ID,
+                mediaTypeColumnName,
+                dateTakenColumnName,
+                dateAddedColumnName,
+                dataColumnName,
+                sizeColumnName,
+            ),
+            xmpColumn = MediaStore.Images.Media.XMP,
+            imageOnly = false,
         )
-        xmpColumnName?.let(projection::add)
         val selection = "$mediaTypeColumnName = ? OR $mediaTypeColumnName = ?"
         val selectionArgs = arrayOf(
             MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
@@ -616,7 +614,6 @@ class MainActivity : FlutterActivity() {
                 val dateAddedColumn = cursor.getColumnIndex(dateAddedColumnName)
                 val dataColumn = cursor.getColumnIndex(dataColumnName)
                 val sizeColumn = cursor.getColumnIndex(sizeColumnName)
-                val xmpColumn = xmpColumnName?.let(cursor::getColumnIndex) ?: -1
 
                 while (cursor.moveToNext()) {
                     val rowId = cursor.getLong(idColumn)
@@ -643,12 +640,6 @@ class MainActivity : FlutterActivity() {
                     val sizeBytes = readLong(cursor, sizeColumn)
                     val uri = contentUri.toString()
                     val pathOrUri = if (filePath.isNullOrBlank()) uri else filePath
-                    val motionPhotoXmp = if (type == "photo") {
-                        readMotionPhotoXmp(cursor, xmpColumn)
-                    } else {
-                        null
-                    }
-
                     items.add(
                         NativeMediaItem(
                             id = "$type:$rowId",
@@ -657,7 +648,6 @@ class MainActivity : FlutterActivity() {
                             locationKey = readCachedLocationKey("$type:$rowId"),
                             pathOrUri = pathOrUri,
                             sizeBytes = sizeBytes,
-                            motionPhotoXmp = motionPhotoXmp,
                         )
                     )
                 }
@@ -669,7 +659,7 @@ class MainActivity : FlutterActivity() {
             Log.e(logTag, "fetchMediaPagePrimary failed offset=$safeOffset limit=$safeLimit", error)
             return emptyList()
         }
-        return items
+        return attachMotionPhotoXmp(items)
     }
 
     private fun fetchMediaPageLegacy(offset: Int, limit: Int): List<NativeMediaItem> {
@@ -701,21 +691,17 @@ class MainActivity : FlutterActivity() {
         val dateAddedColumnName = "date_added"
         val dataColumnName = "_data"
         val sizeColumnName = MediaStore.MediaColumns.SIZE
-        val xmpColumnName = if (
-            type == "photo" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-        ) {
-            MediaStore.Images.Media.XMP
-        } else {
-            null
-        }
-        val projection = mutableListOf(
-            MediaStore.MediaColumns._ID,
-            dateTakenColumnName,
-            dateAddedColumnName,
-            dataColumnName,
-            sizeColumnName,
+        val projection = buildMediaProjection(
+            baseColumns = listOf(
+                MediaStore.MediaColumns._ID,
+                dateTakenColumnName,
+                dateAddedColumnName,
+                dataColumnName,
+                sizeColumnName,
+            ),
+            xmpColumn = MediaStore.Images.Media.XMP,
+            imageOnly = false,
         )
-        xmpColumnName?.let(projection::add)
         val items = mutableListOf<NativeMediaItem>()
         try {
             contentResolver.query(
@@ -730,7 +716,6 @@ class MainActivity : FlutterActivity() {
                 val dateAddedColumn = cursor.getColumnIndex(dateAddedColumnName)
                 val dataColumn = cursor.getColumnIndex(dataColumnName)
                 val sizeColumn = cursor.getColumnIndex(sizeColumnName)
-                val xmpColumn = xmpColumnName?.let(cursor::getColumnIndex) ?: -1
 
                 while (cursor.moveToNext()) {
                     val rowId = cursor.getLong(idColumn)
@@ -746,7 +731,6 @@ class MainActivity : FlutterActivity() {
                     val sizeBytes = readLong(cursor, sizeColumn)
                     val uri = contentUri.toString()
                     val pathOrUri = if (filePath.isNullOrBlank()) uri else filePath
-                    val motionPhotoXmp = readMotionPhotoXmp(cursor, xmpColumn)
                     items.add(
                         NativeMediaItem(
                             id = "$type:$rowId",
@@ -755,7 +739,6 @@ class MainActivity : FlutterActivity() {
                             locationKey = readCachedLocationKey("$type:$rowId"),
                             pathOrUri = pathOrUri,
                             sizeBytes = sizeBytes,
-                            motionPhotoXmp = motionPhotoXmp,
                         )
                     )
                 }
@@ -764,7 +747,7 @@ class MainActivity : FlutterActivity() {
             Log.e(logTag, "queryMediaStoreByType failed type=$type", error)
             return emptyList()
         }
-        return items
+        return if (type == "photo") attachMotionPhotoXmp(items) else items
     }
 
     private fun readGeoLocationFromExif(filePath: String?, contentUri: Uri): Pair<Double, Double>? {
@@ -2468,14 +2451,51 @@ class MainActivity : FlutterActivity() {
         return cursor.getString(columnIndex)
     }
 
-    private fun readMotionPhotoXmp(
-        cursor: android.database.Cursor,
-        columnIndex: Int,
-    ): String? {
-        val xmp = readString(cursor, columnIndex) ?: return null
-        return xmp.takeIf {
-            it.contains("MotionPhoto", ignoreCase = true) ||
-                it.contains("MicroVideo", ignoreCase = true)
+    private fun attachMotionPhotoXmp(items: List<NativeMediaItem>): List<NativeMediaItem> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return items
+        val photoIds = items.mapNotNull { item ->
+            item.takeIf { it.type == "photo" }
+                ?.id
+                ?.substringAfter("photo:", missingDelimiterValue = "")
+                ?.takeIf { it.isNotEmpty() }
+        }
+        if (photoIds.isEmpty()) return items
+
+        val xmpById = mutableMapOf<String, String>()
+        val placeholders = List(photoIds.size) { "?" }.joinToString(",")
+        val projection = buildMediaProjection(
+            baseColumns = listOf(MediaStore.Images.Media._ID),
+            xmpColumn = MediaStore.Images.Media.XMP,
+            imageOnly = true,
+        )
+        try {
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection.toTypedArray(),
+                "${MediaStore.Images.Media._ID} IN ($placeholders)",
+                photoIds.toTypedArray(),
+                null,
+            )?.use { cursor ->
+                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val xmpColumn = cursor.getColumnIndex(MediaStore.Images.Media.XMP)
+                while (cursor.moveToNext()) {
+                    val xmp = readString(cursor, xmpColumn) ?: continue
+                    if (
+                        xmp.contains("MotionPhoto", ignoreCase = true) ||
+                        xmp.contains("MicroVideo", ignoreCase = true)
+                    ) {
+                        xmpById[cursor.getLong(idColumn).toString()] = xmp
+                    }
+                }
+            }
+        } catch (error: Exception) {
+            Log.d(logTag, "Motion Photo XMP query unavailable: ${error.message}")
+            return items
+        }
+        if (xmpById.isEmpty()) return items
+        return items.map { item ->
+            val rawId = item.id.substringAfter("photo:", missingDelimiterValue = "")
+            item.copy(motionPhotoXmp = xmpById[rawId])
         }
     }
 

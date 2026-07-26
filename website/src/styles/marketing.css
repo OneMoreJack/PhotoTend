@@ -662,8 +662,8 @@
 }
 
 .final-cta__action {
+  min-width: 0;
   display: grid;
-  justify-items: start;
   gap: var(--space-3);
 }
 
@@ -672,6 +672,132 @@
   color: #f8e6d9;
   font-size: 0.72rem;
   line-height: 1.5;
+}
+
+.waitlist-form {
+  width: 100%;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.waitlist-form__field,
+.waitlist-form fieldset {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.waitlist-form label,
+.waitlist-form legend {
+  color: var(--color-surface);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.waitlist-form input[type="email"] {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0 var(--space-4);
+  border: 1px solid #e8a987;
+  border-radius: var(--radius-sm);
+  background: #a94725;
+  color: var(--color-surface);
+  font: inherit;
+}
+
+.waitlist-form input[type="email"]::placeholder {
+  color: #f7d7c4;
+}
+
+.waitlist-form input[type="email"]:focus-visible,
+.platform-options input:focus-visible + span,
+.consent-field input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent), 0 0 0 6px var(--color-surface);
+}
+
+.waitlist-form input[aria-invalid="true"] {
+  border-color: var(--color-surface);
+}
+
+.platform-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.platform-options label {
+  cursor: pointer;
+}
+
+.platform-options input {
+  position: absolute;
+  opacity: 0;
+}
+
+.platform-options span {
+  min-height: 2.75rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e8a987;
+  border-radius: var(--radius-sm);
+  color: #f8e6d9;
+}
+
+.platform-options input:checked + span {
+  border-color: var(--color-surface);
+  background: var(--color-surface);
+  color: var(--color-accent-deep);
+}
+
+.consent-field {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.consent-field input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.1rem 0 0;
+  accent-color: var(--color-surface);
+}
+
+.consent-field span {
+  color: #f8e6d9;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.waitlist-form .button {
+  width: 100%;
+}
+
+.waitlist-form .button:disabled {
+  cursor: not-allowed;
+  background: #d58b66;
+  color: #f6d9c8;
+}
+
+.waitlist-form__error,
+.waitlist-form__status {
+  color: var(--color-surface);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.website-field {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }
 
 .site-footer {

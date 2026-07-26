@@ -111,7 +111,21 @@ export type Database = {
           occurred_at: string;
           created_at: string;
         };
-        Insert: never;
+        Insert: {
+          waitlist_entry_id?: string | null;
+          provider_message_id?: string | null;
+          provider_event_id: string;
+          event_type:
+            | "sent"
+            | "delivered"
+            | "delivery_delayed"
+            | "failed"
+            | "bounced"
+            | "complained"
+            | "clicked"
+            | "suppressed";
+          occurred_at: string;
+        };
         Update: never;
         Relationships: [];
       };

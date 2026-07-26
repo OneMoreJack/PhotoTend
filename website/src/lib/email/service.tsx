@@ -10,6 +10,7 @@ export type EmailMessage = {
   react: ReactElement;
   text: string;
   idempotencyKey: string;
+  tags: Array<{ name: string; value: string }>;
 };
 
 export type EmailSender = {
@@ -84,6 +85,7 @@ export function createEmailService({
             ? `下载 ${input.release.platform} ${input.release.version}：${downloadUrl}`
             : `Download ${input.release.platform} ${input.release.version}: ${downloadUrl}`,
         idempotencyKey: `download-${input.entryId}-${input.release.id}-${expiryDay}`,
+        tags: [{ name: "entry_id", value: input.entryId }],
       });
     },
 
@@ -113,6 +115,7 @@ export function createEmailService({
             ? "已加入 PhotoTend 体验名单。版本开放后，我们会第一时间通知你。"
             : "You’re on the PhotoTend preview list. We’ll let you know when it opens.",
         idempotencyKey: `waiting-${input.entryId}-${input.platform}-${day}`,
+        tags: [{ name: "entry_id", value: input.entryId }],
       });
     },
   };

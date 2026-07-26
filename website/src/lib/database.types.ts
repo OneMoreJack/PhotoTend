@@ -26,6 +26,7 @@ export type Database = {
           source: string;
           consent_at: string;
           status?: WaitlistStatus;
+          updated_at?: string;
         };
         Update: {
           platform?: Platform;

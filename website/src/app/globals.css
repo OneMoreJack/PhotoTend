@@ -15,9 +15,12 @@
 
 body {
   margin: 0;
+  overflow-x: clip;
+  background: var(--color-paper);
+  font-kerning: normal;
 }
 
-main {
+body > main {
   min-height: 100vh;
   display: grid;
   place-content: center;
@@ -29,6 +32,15 @@ main {
 h1,
 p {
   margin: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-deep);
 }
 
 a {

@@ -1,4 +1,12 @@
 .worktrees/
+website/.next/
+website/node_modules/
+website/coverage/
+website/playwright-report/
+website/test-results/
+website/.env
+website/.env.local
+website/.env.*.local
 
 # Flutter/Dart/Pub
 .dart_tool/

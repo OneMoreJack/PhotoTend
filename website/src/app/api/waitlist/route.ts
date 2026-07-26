@@ -98,20 +98,71 @@ export function createWaitlistHandler(waitlist: WaitlistJoiner) {
 }
 
 export async function POST(request: Request) {
+  const fingerprintSecret = process.env.REQUEST_FINGERPRINT_SECRET;
+  const downloadSecret = process.env.DOWNLOAD_TOKEN_SECRET;
+  const unsubscribeSecret = process.env.UNSUBSCRIBE_TOKEN_SECRET;
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendFrom = process.env.RESEND_FROM;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (
+    !fingerprintSecret ||
+    !downloadSecret ||
+    !unsubscribeSecret ||
+    !resendApiKey ||
+    !resendFrom ||
+    !siteUrl
+  ) {
+    return json({ result: "try-again" }, 503);
+  }
+
   const [
     { createWaitlistService },
     { createSupabaseWaitlistRepository },
     { createSupabaseRateLimiter },
+    { createWaitlistDeliveryService },
+    { createDownloadService },
+    supabaseDownloads,
+    { createEmailService },
+    { createResendEmailSender },
+    { createUnsubscribeService },
+    { createSupabaseUnsubscribeRepository },
   ] =
     await Promise.all([
       import("@/lib/waitlist/service"),
       import("@/lib/waitlist/supabase-repository"),
       import("@/lib/security/supabase-rate-limit"),
+      import("@/lib/waitlist/delivery"),
+      import("@/lib/downloads/service"),
+      import("@/lib/downloads/supabase"),
+      import("@/lib/email/service"),
+      import("@/lib/email/client"),
+      import("@/lib/unsubscribe/service"),
+      import("@/lib/unsubscribe/supabase"),
     ]);
   const rateLimiter = createSupabaseRateLimiter();
+  const downloads = createDownloadService({
+    repository: supabaseDownloads.createSupabaseDownloadRepository(),
+    signer: supabaseDownloads.createSupabaseReleaseSigner(),
+    tokenSecret: downloadSecret,
+  });
+  const unsubscribe = createUnsubscribeService({
+    repository: createSupabaseUnsubscribeRepository(),
+    tokenSecret: unsubscribeSecret,
+  });
+  const email = createEmailService({
+    sender: createResendEmailSender(resendApiKey),
+    grants: downloads,
+    siteUrl,
+    from: resendFrom,
+  });
+  const delivery = createWaitlistDeliveryService({
+    waitlist: createWaitlistService(createSupabaseWaitlistRepository()),
+    unsubscribe,
+    email,
+  });
   return createWaitlistHandler({
-    ...createWaitlistService(createSupabaseWaitlistRepository()),
+    ...delivery,
     checkRateLimit: rateLimiter.check,
-    fingerprintSecret: process.env.REQUEST_FINGERPRINT_SECRET,
+    fingerprintSecret,
   })(request);
 }

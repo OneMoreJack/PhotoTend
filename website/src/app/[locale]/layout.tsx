@@ -7,6 +7,7 @@ import { getMessages } from "@/i18n/messages";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import "../../styles/marketing.css";
 
 type LayoutProps = {
   children: ReactNode;

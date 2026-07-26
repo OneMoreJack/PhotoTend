@@ -99,7 +99,7 @@ describe("WaitlistForm", () => {
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "暂时没能提交，请稍后再试。你的邮箱尚未被保存。",
+        "暂时没能完成，请稍后再试。我们会安全地处理你的重复提交。",
       ),
     );
     expect(screen.getByLabelText("邮箱")).toHaveValue("user@example.com");

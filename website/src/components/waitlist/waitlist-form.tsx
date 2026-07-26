@@ -18,7 +18,7 @@ const copy = {
     retry: "再次尝试",
     waiting: "已加入名单。版本开放后，我们会第一时间通知你。",
     ready: "邮件已出发，请打开邮箱查看下载方式。",
-    error: "暂时没能提交，请稍后再试。你的邮箱尚未被保存。",
+    error: "暂时没能完成，请稍后再试。我们会安全地处理你的重复提交。",
   },
   en: {
     email: "Email",
@@ -31,7 +31,7 @@ const copy = {
     retry: "Try again",
     waiting: "You’re on the list. We’ll let you know when this preview opens.",
     ready: "The email is on its way. Open your inbox for download details.",
-    error: "We couldn’t save your email. Please try again in a moment.",
+    error: "We couldn’t finish that. Please try again in a moment; repeat submissions are handled safely.",
   },
 } as const;
 

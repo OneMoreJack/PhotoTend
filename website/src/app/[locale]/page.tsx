@@ -9,7 +9,6 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { isLocale, locales, type Locale } from "@/i18n/config";
 import { notFound } from "next/navigation";
-import "../../styles/marketing.css";
 
 type PageProps = {
   params: Promise<{ locale: string }>;

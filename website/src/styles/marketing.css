@@ -983,3 +983,35 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.legal-page {
+  width: min(calc(100% - 2rem), 48rem);
+  min-height: 100vh;
+  display: grid;
+  place-content: start;
+  gap: var(--space-6);
+  margin-inline: auto;
+  padding-block: var(--space-7) var(--space-9);
+  text-align: left;
+}
+
+.legal-page section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.legal-page h1 {
+  margin: var(--space-6) 0 0;
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  letter-spacing: -0.06em;
+}
+
+.legal-page h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.legal-page p {
+  color: var(--color-muted);
+  line-height: 1.8;
+}

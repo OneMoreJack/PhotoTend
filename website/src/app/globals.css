@@ -1,3 +1,5 @@
+@import "../styles/tokens.css";
+
 :root {
   color-scheme: light;
   background: #f4f0e8;
@@ -32,4 +34,18 @@ p {
 a {
   color: #7e351f;
   font-weight: 800;
+}
+
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.brand-lockup:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }

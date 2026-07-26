@@ -81,62 +81,77 @@ export function WaitlistForm({
       noValidate
       onSubmit={handleSubmit}
     >
-      <div className="waitlist-form__field">
-        <label htmlFor={`${source}-email`}>{messages.email}</label>
-        <input
-          id={`${source}-email`}
-          name="email"
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          placeholder={messages.emailPlaceholder}
-          value={email}
-          aria-invalid={emailTouched && !emailValid}
-          aria-describedby={
-            emailTouched && !emailValid ? `${source}-email-error` : undefined
-          }
-          onBlur={() => setEmailTouched(true)}
-          onChange={(event) => setEmail(event.target.value)}
-        />
-        {emailTouched && !emailValid ? (
-          <span className="waitlist-form__error" id={`${source}-email-error`}>
-            {messages.emailError}
-          </span>
-        ) : null}
+      <div
+        className="waitlist-form__group waitlist-form__identity"
+        data-testid="waitlist-identity-group"
+      >
+        <div className="waitlist-form__field">
+          <label htmlFor={`${source}-email`}>{messages.email}</label>
+          <input
+            id={`${source}-email`}
+            name="email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder={messages.emailPlaceholder}
+            value={email}
+            aria-invalid={emailTouched && !emailValid}
+            aria-describedby={
+              emailTouched && !emailValid ? `${source}-email-error` : undefined
+            }
+            onBlur={() => setEmailTouched(true)}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          {emailTouched && !emailValid ? (
+            <span className="waitlist-form__error" id={`${source}-email-error`}>
+              {messages.emailError}
+            </span>
+          ) : null}
+        </div>
       </div>
 
-      <fieldset>
-        <legend>{messages.platform}</legend>
-        <div className="platform-options">
-          {(
-            [
-              ["android", "Android"],
-              ["macos", "macOS"],
-              ["ios", "iPhone"],
-            ] as const
-          ).map(([value, label]) => (
-            <label key={value}>
-              <input
-                type="radio"
-                name="platform"
-                value={value}
-                checked={platform === value}
-                onChange={() => setPlatform(value)}
-              />
-              <span>{label}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <div
+        className="waitlist-form__group waitlist-form__preferences"
+        data-testid="waitlist-preferences-group"
+      >
+        <fieldset>
+          <legend>{messages.platform}</legend>
+          <div className="platform-options">
+            {(
+              [
+                ["android", "Android"],
+                ["macos", "macOS"],
+                ["ios", "iPhone"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value}>
+                <input
+                  type="radio"
+                  name="platform"
+                  value={value}
+                  checked={platform === value}
+                  onChange={() => setPlatform(value)}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </div>
 
-      <label className="consent-field">
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(event) => setConsent(event.target.checked)}
-        />
-        <span>{messages.consent}</span>
-      </label>
+      <div
+        className="waitlist-form__group waitlist-form__consent"
+        data-testid="waitlist-consent-group"
+      >
+        <label className="consent-field">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(event) => setConsent(event.target.checked)}
+          />
+          <span>{messages.consent}</span>
+        </label>
+      </div>
 
       <div className="website-field" aria-hidden="true">
         <label htmlFor={`${source}-website`}>Website</label>
@@ -150,26 +165,31 @@ export function WaitlistForm({
         />
       </div>
 
-      <button
-        className="button button--light"
-        type="submit"
-        disabled={!canSubmit}
-        onClick={waitlist.status === "error" ? waitlist.retry : undefined}
+      <div
+        className="waitlist-form__group waitlist-form__submit"
+        data-testid="waitlist-submit-group"
       >
-        {buttonLabel}
-      </button>
+        <button
+          className="button button--light"
+          type="submit"
+          disabled={!canSubmit}
+          onClick={waitlist.status === "error" ? waitlist.retry : undefined}
+        >
+          {buttonLabel}
+        </button>
 
-      {waitlist.status === "waiting" ||
-      waitlist.status === "download-ready" ? (
-        <p className="waitlist-form__status" role="status">
-          {waitlist.status === "waiting" ? messages.waiting : messages.ready}
-        </p>
-      ) : null}
-      {waitlist.status === "error" ? (
-        <p className="waitlist-form__error" role="alert">
-          {messages.error}
-        </p>
-      ) : null}
+        {waitlist.status === "waiting" ||
+        waitlist.status === "download-ready" ? (
+          <p className="waitlist-form__status" role="status">
+            {waitlist.status === "waiting" ? messages.waiting : messages.ready}
+          </p>
+        ) : null}
+        {waitlist.status === "error" ? (
+          <p className="waitlist-form__error" role="alert">
+            {messages.error}
+          </p>
+        ) : null}
+      </div>
     </form>
   );
 }

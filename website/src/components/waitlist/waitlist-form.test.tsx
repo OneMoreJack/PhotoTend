@@ -18,6 +18,10 @@ describe("WaitlistForm", () => {
   it("uses visible labels and requires platform and consent", () => {
     render(<WaitlistForm locale="zh-CN" source="footer" />);
 
+    expect(screen.getByTestId("waitlist-identity-group")).toBeVisible();
+    expect(screen.getByTestId("waitlist-preferences-group")).toBeVisible();
+    expect(screen.getByTestId("waitlist-consent-group")).toBeVisible();
+    expect(screen.getByTestId("waitlist-submit-group")).toBeVisible();
     expect(screen.getByLabelText("邮箱")).toBeVisible();
     expect(
       screen.getByRole("group", { name: "希望接收哪个平台的通知" }),

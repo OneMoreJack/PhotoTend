@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 type Locale = "zh-CN" | "en";
 
@@ -11,7 +12,7 @@ export function BrandLockup({ locale }: { locale: Locale }) {
   const brandName = brandNames[locale];
 
   return (
-    <a
+    <Link
       className="brand-lockup"
       href={`/${locale}`}
       aria-label={brandName}
@@ -23,6 +24,6 @@ export function BrandLockup({ locale }: { locale: Locale }) {
         alt=""
       />
       <span aria-hidden="true">{brandName}</span>
-    </a>
+    </Link>
   );
 }

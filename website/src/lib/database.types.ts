@@ -97,7 +97,18 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      check_waitlist_rate_limit: {
+        Args: {
+          input_email_hash: string;
+          input_source_hash: string;
+          window_seconds?: number;
+          email_limit?: number;
+          source_limit?: number;
+        };
+        Returns: boolean;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

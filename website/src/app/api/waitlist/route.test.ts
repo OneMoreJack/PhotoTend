@@ -92,4 +92,24 @@ describe("waitlist route", () => {
       result: "try-again",
     });
   });
+
+  it("stops before persistence when the durable limiter rejects a request", async () => {
+    const join = vi.fn();
+    const checkRateLimit = vi.fn().mockResolvedValue({ allowed: false });
+    const response = await createWaitlistHandler({
+      join,
+      checkRateLimit,
+      fingerprintSecret: "test-secret",
+    })(
+      request(requestBody, {
+        "x-vercel-forwarded-for": "203.0.113.8",
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toEqual({
+      result: "try-later",
+    });
+    expect(join).not.toHaveBeenCalled();
+  });
 });

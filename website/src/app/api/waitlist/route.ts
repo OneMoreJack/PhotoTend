@@ -1,7 +1,17 @@
 import type { WaitlistResult } from "@/lib/waitlist/service";
+import {
+  createRequestFingerprint,
+  getRequestSource,
+} from "@/lib/security/request-fingerprint";
+import type { RateLimitResult } from "@/lib/security/rate-limit";
 
 type WaitlistJoiner = {
   join(input: unknown): Promise<WaitlistResult>;
+  checkRateLimit?: (input: {
+    emailHash: string;
+    sourceHash: string;
+  }) => Promise<RateLimitResult>;
+  fingerprintSecret?: string;
 };
 
 function json(body: unknown, status = 200) {
@@ -45,6 +55,30 @@ export function createWaitlistHandler(waitlist: WaitlistJoiner) {
     }
 
     try {
+      if (waitlist.checkRateLimit) {
+        const rawEmail =
+          typeof input === "object" &&
+          input !== null &&
+          "email" in input &&
+          typeof input.email === "string"
+            ? input.email.trim().toLowerCase()
+            : "invalid";
+        const secret = waitlist.fingerprintSecret;
+        if (!secret) {
+          return json({ result: "try-again" }, 503);
+        }
+        const limit = await waitlist.checkRateLimit({
+          emailHash: createRequestFingerprint(`email:${rawEmail}`, secret),
+          sourceHash: createRequestFingerprint(
+            `source:${getRequestSource(request.headers)}`,
+            secret,
+          ),
+        });
+        if (!limit.allowed) {
+          return json({ result: "try-later" }, 429);
+        }
+      }
+
       const result = await waitlist.join(input);
       return json({
         result:
@@ -64,12 +98,20 @@ export function createWaitlistHandler(waitlist: WaitlistJoiner) {
 }
 
 export async function POST(request: Request) {
-  const [{ createWaitlistService }, { createSupabaseWaitlistRepository }] =
+  const [
+    { createWaitlistService },
+    { createSupabaseWaitlistRepository },
+    { createSupabaseRateLimiter },
+  ] =
     await Promise.all([
       import("@/lib/waitlist/service"),
       import("@/lib/waitlist/supabase-repository"),
+      import("@/lib/security/supabase-rate-limit"),
     ]);
-  return createWaitlistHandler(
-    createWaitlistService(createSupabaseWaitlistRepository()),
-  )(request);
+  const rateLimiter = createSupabaseRateLimiter();
+  return createWaitlistHandler({
+    ...createWaitlistService(createSupabaseWaitlistRepository()),
+    checkRateLimit: rateLimiter.check,
+    fingerprintSecret: process.env.REQUEST_FINGERPRINT_SECRET,
+  })(request);
 }

@@ -4,6 +4,7 @@ website/node_modules/
 website/coverage/
 website/playwright-report/
 website/test-results/
+website/*.tsbuildinfo
 website/.env
 website/.env.local
 website/.env.*.local

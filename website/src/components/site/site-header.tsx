@@ -18,7 +18,10 @@ export function SiteHeader({ locale }: { locale: Locale }) {
         </nav>
         <div className="site-header__actions">
           <LocaleSwitcher locale={locale} />
-          <Link className="button button--compact" href={`/${locale}#waitlist`}>
+          <Link
+            className="button button--compact"
+            href={`/api/download/android?locale=${locale}`}
+          >
             {nav.join}
           </Link>
         </div>

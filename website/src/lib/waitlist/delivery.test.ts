@@ -11,7 +11,7 @@ const input = {
 } as const;
 
 describe("waitlist delivery", () => {
-  it("saves first, issues an unsubscribe token, then sends a download email", async () => {
+  it("saves first, then sends an update subscription confirmation", async () => {
     const join = vi.fn().mockResolvedValue({
       kind: "download-ready",
       entryId: "entry-1",
@@ -24,23 +24,25 @@ describe("waitlist delivery", () => {
     });
     const issue = vi.fn().mockResolvedValue("unsubscribe-token");
     const sendDownload = vi.fn().mockResolvedValue({ id: "email-1" });
+    const sendWaiting = vi.fn().mockResolvedValue({ id: "email-1" });
     const delivery = createWaitlistDeliveryService({
       waitlist: { join },
       unsubscribe: { issue },
-      email: { sendDownload, sendWaiting: vi.fn() },
+      email: { sendDownload, sendWaiting },
     });
 
     await expect(delivery.join(input)).resolves.toMatchObject({
-      kind: "download-ready",
+      kind: "waiting",
     });
     expect(join).toHaveBeenCalledBefore(issue);
-    expect(issue).toHaveBeenCalledBefore(sendDownload);
-    expect(sendDownload).toHaveBeenCalledWith(
+    expect(issue).toHaveBeenCalledBefore(sendWaiting);
+    expect(sendWaiting).toHaveBeenCalledWith(
       expect.objectContaining({
         email: "user@example.com",
         unsubscribeToken: "unsubscribe-token",
       }),
     );
+    expect(sendDownload).not.toHaveBeenCalled();
   });
 
   it("preserves the saved entry when email delivery fails", async () => {

@@ -39,11 +39,15 @@ export function WaitlistEmail({ locale, platform, unsubscribeUrl }: Props) {
           }}
         >
           <p style={{ color: "#B55A30", fontWeight: 800 }}>PhotoTend</p>
-          <h1>{chinese ? "已加入体验名单" : "You’re on the PhotoTend preview list"}</h1>
+          <h1>
+            {chinese
+              ? "已订阅 PhotoTend 版本通知"
+              : "You’re subscribed to PhotoTend updates"}
+          </h1>
           <p>
             {chinese
-              ? `${platformName} 体验版还在准备中，开放后我们会第一时间通知你。`
-              : `We’ll let you know when the ${platformName} preview opens.`}
+              ? `我们会通过邮件发送重要的 ${platformName} 版本与平台上线通知。`
+              : `We’ll email you about important ${platformName} releases and availability.`}
           </p>
           <p style={{ color: "#756F66", fontSize: "13px", lineHeight: 1.6 }}>
             {chinese
@@ -54,7 +58,7 @@ export function WaitlistEmail({ locale, platform, unsubscribeUrl }: Props) {
             href={unsubscribeUrl}
             style={{ color: "#756F66", fontSize: "13px" }}
           >
-            {chinese ? "退出体验名单" : "Leave the preview list"}
+            {chinese ? "退订版本通知" : "Unsubscribe from updates"}
           </a>
         </main>
       </body>

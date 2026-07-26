@@ -25,8 +25,8 @@ export default async function PrivacyPage({ params }: Props) {
         <h2>{chinese ? "我们收集什么" : "What we collect"}</h2>
         <p>
           {chinese
-            ? "当你加入体验名单时，我们收集邮箱、所选平台、页面语言、提交时间和同意时间。为防止滥用，我们还会短期处理请求来源的不可逆摘要。"
-            : "When you join the preview list, we collect your email, selected platform, page language, submission time, and consent time. To prevent abuse, we also process a short-lived irreversible request-source digest."}
+            ? "当你订阅版本通知时，我们收集邮箱、所选平台、页面语言、提交时间和同意时间。为防止滥用，我们还会短期处理请求来源的不可逆摘要。Android 安装包下载不要求提供邮箱。"
+            : "When you subscribe to release updates, we collect your email, selected platform, page language, submission time, and consent time. To prevent abuse, we also process a short-lived irreversible request-source digest. Android downloads do not require an email."}
         </p>
       </section>
 
@@ -34,8 +34,8 @@ export default async function PrivacyPage({ params }: Props) {
         <h2>{chinese ? "为什么使用这些数据" : "Why we use it"}</h2>
         <p>
           {chinese
-            ? "这些数据只用于管理体验名单、发送下载方式和重要版本通知、处理退订、保护服务以及排查邮件和下载问题。"
-            : "We use this data only to manage preview access, send download details and important release updates, process unsubscribe requests, protect the service, and troubleshoot email or download issues."}
+            ? "这些数据只用于管理版本通知订阅、发送重要版本与平台上线消息、处理退订、保护服务以及排查邮件问题。"
+            : "We use this data only to manage release-update subscriptions, send important release and platform-availability news, process unsubscribe requests, protect the service, and troubleshoot email issues."}
         </p>
       </section>
 
@@ -52,8 +52,8 @@ export default async function PrivacyPage({ params }: Props) {
         <h2>{chinese ? "保存、退订与删除" : "Retention, unsubscribe, and deletion"}</h2>
         <p>
           {chinese
-            ? "我们只在提供体验和履行上述用途所需的时间内保存数据。你可以使用每封邮件中的退订链接停止非必要邮件，也可以提交数据删除请求。为证明退订并避免再次发送，我们可能保留最少的抑制记录。"
-            : "We retain data only as long as needed for preview access and the purposes above. You can stop non-essential email using the unsubscribe link in every message or submit a deletion request. We may retain a minimal suppression record to honor your opt-out."}
+            ? "我们只在履行上述用途所需的时间内保存数据。你可以使用每封邮件中的退订链接停止通知，也可以提交数据删除请求。为证明退订并避免再次发送，我们可能保留最少的抑制记录。"
+            : "We retain data only as long as needed for the purposes above. You can stop updates using the unsubscribe link in every message or submit a deletion request. We may retain a minimal suppression record to honor your opt-out."}
         </p>
       </section>
 

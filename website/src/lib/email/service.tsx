@@ -101,8 +101,8 @@ export function createEmailService({
         to: input.email,
         subject:
           input.locale === "zh-CN"
-            ? "你已加入 PhotoTend 体验名单"
-            : "You’re on the PhotoTend preview list",
+            ? "你已订阅 PhotoTend 版本通知"
+            : "You’re subscribed to PhotoTend updates",
         react: (
           <WaitlistEmail
             locale={input.locale}
@@ -112,8 +112,8 @@ export function createEmailService({
         ),
         text:
           input.locale === "zh-CN"
-            ? "已加入 PhotoTend 体验名单。版本开放后，我们会第一时间通知你。"
-            : "You’re on the PhotoTend preview list. We’ll let you know when it opens.",
+            ? "已订阅 PhotoTend 版本通知。我们只会发送重要版本与平台上线消息。"
+            : "You’re subscribed to PhotoTend updates. We’ll only send important release and availability news.",
         idempotencyKey: `waiting-${input.entryId}-${input.platform}-${day}`,
         tags: [{ name: "entry_id", value: input.entryId }],
       });

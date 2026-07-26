@@ -77,8 +77,9 @@ npm run verify:env
 2. Resend 域名、API Key、Webhook。
 3. Vercel 环境变量与首次生产部署。
 4. Vercel 自定义域名和 DNS。
-5. 上传已签名、已验证的安装包并激活 release 记录。
-6. 用指定测试邮箱完成 waitlist → 邮件 → 下载 → 退订闭环。
+5. 上传已签名、已验证的 Android 安装包并激活 release 记录。
+6. 验证无需邮箱即可完成 Android 直接下载。
+7. 用指定测试邮箱完成版本通知订阅 → 确认邮件 → 退订闭环。
 
 ## 5. 非敏感交接记录
 

@@ -46,29 +46,15 @@ export function createWaitlistDeliveryService({
       const result = await waitlist.join(parsed);
       const unsubscribeToken = await unsubscribe.issue(result.entryId);
 
-      if (result.kind === "download-ready") {
-        await email.sendDownload({
-          entryId: result.entryId,
-          email: parsed.email,
-          locale: parsed.locale,
-          release: {
-            id: result.release.id,
-            platform: result.release.platform,
-            version: result.release.version,
-          },
-          unsubscribeToken,
-        });
-      } else {
-        await email.sendWaiting({
-          entryId: result.entryId,
-          email: parsed.email,
-          locale: parsed.locale,
-          platform: parsed.platform,
-          unsubscribeToken,
-        });
-      }
+      await email.sendWaiting({
+        entryId: result.entryId,
+        email: parsed.email,
+        locale: parsed.locale,
+        platform: parsed.platform,
+        unsubscribeToken,
+      });
 
-      return result;
+      return { kind: "waiting" as const, entryId: result.entryId };
     },
   };
 }

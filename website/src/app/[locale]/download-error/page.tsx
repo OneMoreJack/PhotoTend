@@ -31,11 +31,11 @@ export default async function DownloadErrorPage({
       </h1>
       <p>
         {locale === "zh-CN"
-          ? "重新留下邮箱，我们会为你准备新的下载方式。"
-          : "Leave your email again and we will prepare a new download path."}
+          ? "Android 安装包可能正在更新，请稍后直接重试；下载不需要提供邮箱。"
+          : "The Android package may be updating. Try the direct download again shortly—no email is required."}
       </p>
-      <Link href={`/${locale}#waitlist`}>
-        {locale === "zh-CN" ? "重新获取体验版" : "Get a new link"}
+      <Link href={`/api/download/android?locale=${locale}`}>
+        {locale === "zh-CN" ? "重新下载 Android 版" : "Retry Android download"}
       </Link>
     </main>
   );

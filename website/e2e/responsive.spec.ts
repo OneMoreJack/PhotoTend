@@ -19,7 +19,9 @@ for (const viewport of viewports) {
         name: "让整理照片，变成一件顺手的小事。",
       }),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "获取体验版" }).first()).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "下载 Android 版" }).first(),
+    ).toBeVisible();
 
     const dimensions = await page.evaluate(() => {
       const clientWidth = document.documentElement.clientWidth;

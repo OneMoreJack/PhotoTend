@@ -74,9 +74,9 @@ describe("email service", () => {
 
     expect(grants.createGrant).not.toHaveBeenCalled();
     const message = vi.mocked(emailSender.send).mock.calls[0]![0];
-    expect(message.subject).toBe("You’re on the PhotoTend preview list");
+    expect(message.subject).toBe("You’re subscribed to PhotoTend updates");
     expect(renderToStaticMarkup(message.react)).toContain(
-      "We’ll let you know when the iPhone preview opens.",
+      "We’ll email you about important iPhone releases and availability.",
     );
   });
 

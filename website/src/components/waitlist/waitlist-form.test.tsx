@@ -19,11 +19,13 @@ describe("WaitlistForm", () => {
     render(<WaitlistForm locale="zh-CN" source="footer" />);
 
     expect(screen.getByLabelText("邮箱")).toBeVisible();
-    expect(screen.getByRole("group", { name: "选择平台" })).toBeVisible();
+    expect(
+      screen.getByRole("group", { name: "希望接收哪个平台的通知" }),
+    ).toBeVisible();
     expect(screen.getByLabelText("Android")).toBeVisible();
     expect(screen.getByLabelText("macOS")).toBeVisible();
     expect(screen.getByLabelText("iPhone")).toBeVisible();
-    expect(screen.getByRole("button", { name: "获取体验版" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "订阅更新" })).toBeDisabled();
   });
 
   it("shows a useful error after an invalid email loses focus", () => {
@@ -52,19 +54,19 @@ describe("WaitlistForm", () => {
     render(<WaitlistForm locale="zh-CN" source="footer" />);
     fillValidForm();
 
-    fireEvent.click(screen.getByRole("button", { name: "获取体验版" }));
+    fireEvent.click(screen.getByRole("button", { name: "订阅更新" }));
 
     expect(
-      screen.getByRole("button", { name: "正在加入体验名单……" }),
+      screen.getByRole("button", { name: "正在订阅……" }),
     ).toBeDisabled();
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "已加入名单。版本开放后，我们会第一时间通知你。",
+        "订阅成功。重要版本更新时，我们会通知你。",
       ),
     );
   });
 
-  it("announces when the download email has been prepared", async () => {
+  it("treats a legacy download-ready response as a subscription success", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -75,11 +77,11 @@ describe("WaitlistForm", () => {
     );
     render(<WaitlistForm locale="zh-CN" source="footer" />);
     fillValidForm();
-    fireEvent.click(screen.getByRole("button", { name: "获取体验版" }));
+    fireEvent.click(screen.getByRole("button", { name: "订阅更新" }));
 
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "邮件已出发，请打开邮箱查看下载方式。",
+        "订阅成功。重要版本更新时，我们会通知你。",
       ),
     );
   });
@@ -95,7 +97,7 @@ describe("WaitlistForm", () => {
     );
     render(<WaitlistForm locale="zh-CN" source="footer" />);
     fillValidForm();
-    fireEvent.click(screen.getByRole("button", { name: "获取体验版" }));
+    fireEvent.click(screen.getByRole("button", { name: "订阅更新" }));
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
@@ -110,7 +112,11 @@ describe("WaitlistForm", () => {
     render(<WaitlistForm locale="en" source="footer" />);
 
     expect(screen.getByLabelText("Email")).toBeVisible();
-    expect(screen.getByRole("group", { name: "Choose a platform" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Get early access" })).toBeDisabled();
+    expect(
+      screen.getByRole("group", { name: "Choose a platform for updates" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Subscribe to updates" }),
+    ).toBeDisabled();
   });
 });

@@ -12,7 +12,7 @@ export function Hero({ locale }: { locale: Locale }) {
         <h1 id="hero-title">{hero.title}</h1>
         <p className="hero__lead">{hero.body}</p>
         <div className="hero__actions">
-          <Link className="button" href={`/${locale}#waitlist`}>
+          <Link className="button" href={`/api/download/android?locale=${locale}`}>
             {hero.cta}
             <span aria-hidden="true"> ↗</span>
           </Link>

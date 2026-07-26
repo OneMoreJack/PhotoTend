@@ -65,9 +65,25 @@ export type Database = {
           revoked_at: string | null;
           created_at: string;
         };
-        Insert: never;
-        Update: never;
-        Relationships: [];
+        Insert: {
+          waitlist_entry_id: string;
+          release_id: string;
+          token_hash: string;
+          expires_at: string;
+          revoked_at?: string | null;
+        };
+        Update: {
+          revoked_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "download_grants_release_id_fkey";
+            columns: ["release_id"];
+            isOneToOne: false;
+            referencedRelation: "releases";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       download_events: {
         Row: {
@@ -77,7 +93,11 @@ export type Database = {
           request_fingerprint: string | null;
           occurred_at: string;
         };
-        Insert: never;
+        Insert: {
+          download_grant_id?: string | null;
+          result: "redirected" | "expired" | "revoked" | "invalid" | "missing_file";
+          request_fingerprint?: string | null;
+        };
         Update: never;
         Relationships: [];
       };

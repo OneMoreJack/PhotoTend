@@ -658,7 +658,7 @@
 }
 
 .final-cta p {
-  color: #f8e6d9;
+  color: var(--color-surface);
 }
 
 .final-cta__action {
@@ -669,7 +669,7 @@
 
 .final-cta small {
   max-width: 30rem;
-  color: #f8e6d9;
+  color: var(--color-surface);
   font-size: 0.72rem;
   line-height: 1.5;
 }
@@ -744,7 +744,7 @@
   place-items: center;
   border: 1px solid #e8a987;
   border-radius: var(--radius-sm);
-  color: #f8e6d9;
+  color: var(--color-surface);
 }
 
 .platform-options input:checked + span {
@@ -769,7 +769,7 @@
 }
 
 .consent-field span {
-  color: #f8e6d9;
+  color: var(--color-surface);
   font-size: 0.72rem;
   font-weight: 500;
   line-height: 1.55;

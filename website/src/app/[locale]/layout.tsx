@@ -46,6 +46,14 @@ export async function generateMetadata({
       description: messages.metadata.description,
       url: path,
       locale: locale === "zh-CN" ? "zh_CN" : "en_US",
+      images: [
+        {
+          url: "/opengraph-image",
+          width: 1200,
+          height: 630,
+          alt: messages.metadata.title,
+        },
+      ],
     },
   };
 }

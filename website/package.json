@@ -21,6 +21,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/eslintrc": "latest",
     "@playwright/test": "latest",
     "@testing-library/jest-dom": "latest",

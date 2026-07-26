@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://phototend.onemorejack.top"),
   title: "理好相册 PhotoTend",
   description: "轻松整理，留下真正重要的照片。",
+  icons: {
+    icon: "/brand/phototend-app-icon.png",
+    apple: "/brand/phototend-app-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

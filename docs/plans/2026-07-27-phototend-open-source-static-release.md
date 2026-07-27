@@ -354,4 +354,3 @@ Verify desktop and mobile layouts, hero interaction, GitHub navigation, platform
 **Step 4: Report final shipped state**
 
 Report commit/PR/tag/release URLs, deployment URL, download URL, verification commands, signing-certificate fingerprint, and any DNS or platform limitations.
-

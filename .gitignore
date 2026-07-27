@@ -19,6 +19,14 @@ website/.env.*.local
 
 # Build outputs
 build/
+*.apk
+*.aab
+
+# Android release signing
+*.jks
+*.keystore
+key.properties
+android/signing.properties
 
 # IDE
 .idea/

@@ -5,8 +5,26 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseSigningEnvironment = mapOf(
+    "storeFile" to System.getenv("PHOTOTEND_KEYSTORE_PATH"),
+    "storePassword" to System.getenv("PHOTOTEND_KEYSTORE_PASSWORD"),
+    "keyAlias" to System.getenv("PHOTOTEND_KEY_ALIAS"),
+    "keyPassword" to System.getenv("PHOTOTEND_KEY_PASSWORD"),
+)
+val releaseSigningConfigured = releaseSigningEnvironment.values.all { !it.isNullOrBlank() }
+val releaseTaskRequested =
+    gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+
+if (releaseTaskRequested && !releaseSigningConfigured) {
+    throw GradleException(
+        "Release signing requires PHOTOTEND_KEYSTORE_PATH, " +
+            "PHOTOTEND_KEYSTORE_PASSWORD, PHOTOTEND_KEY_ALIAS, and " +
+            "PHOTOTEND_KEY_PASSWORD.",
+    )
+}
+
 android {
-    namespace = "com.example.rephoto"
+    namespace = "top.onemorejack.phototend"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,8 +38,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.rephoto"
+        applicationId = "top.onemorejack.phototend"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -30,11 +47,20 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseSigningEnvironment.getValue("storeFile")!!)
+                storePassword = releaseSigningEnvironment.getValue("storePassword")
+                keyAlias = releaseSigningEnvironment.getValue("keyAlias")
+                keyPassword = releaseSigningEnvironment.getValue("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 }

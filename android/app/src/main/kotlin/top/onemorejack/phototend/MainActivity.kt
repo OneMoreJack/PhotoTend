@@ -1,4 +1,4 @@
-package com.example.rephoto
+package top.onemorejack.phototend
 
 import android.Manifest
 import android.content.ContentValues

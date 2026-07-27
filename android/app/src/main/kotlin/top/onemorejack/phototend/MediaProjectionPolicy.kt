@@ -1,4 +1,4 @@
-package com.example.rephoto
+package top.onemorejack.phototend
 
 internal fun buildMediaProjection(
     baseColumns: List<String>,

@@ -1,4 +1,4 @@
-package com.example.rephoto
+package top.onemorejack.phototend
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

@@ -1,4 +1,4 @@
-package com.example.rephoto
+package top.onemorejack.phototend
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">理好相册 PhotoTend 标志几何稿</title>
+  <desc id="desc">四张方形照片卡片围绕右上装订孔逐渐理齐，最前方卡片严格方正。</desc>
+
+  <rect width="1024" height="1024" fill="#F4F0E8"/>
+
+  <!-- Wider angles and stronger contrast preserve the card layers at small sizes. -->
+  <g transform="rotate(12 800 240)">
+    <rect x="180" y="180" width="680" height="680" rx="60" fill="#F2C7B0" stroke="#F4F0E8" stroke-width="10"/>
+  </g>
+  <g transform="rotate(8 800 240)">
+    <rect x="180" y="180" width="680" height="680" rx="60" fill="#DD926B" stroke="#F4F0E8" stroke-width="10"/>
+  </g>
+  <g transform="rotate(4 800 240)">
+    <rect x="180" y="180" width="680" height="680" rx="60" fill="#C96843" stroke="#F4F0E8" stroke-width="10"/>
+  </g>
+
+  <!-- The front card is intentionally unrotated: every edge is horizontal/vertical. -->
+  <rect x="180" y="180" width="680" height="680" rx="60" fill="#B55A30"/>
+  <circle cx="800" cy="240" r="18" fill="#F4F0E8"/>
+</svg>

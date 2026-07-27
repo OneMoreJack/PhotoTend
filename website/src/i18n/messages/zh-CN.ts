@@ -14,6 +14,7 @@ export const zhCN = {
     why: "为什么是 PhotoTend",
     workflow: "如何使用",
     platforms: "支持平台",
+    github: "GitHub",
     join: "下载 Android 版",
   },
   gesture: {
@@ -69,14 +70,16 @@ export const zhCN = {
     ],
   },
   finalCta: {
-    title: "订阅版本通知",
-    body: "邮箱完全可选。我们会在新版本，以及 macOS 或 iPhone 版本开放时通知你。",
-    cta: "订阅更新",
-    privacy: "只发送重要版本通知，不影响 Android 直接下载。你可以随时退订。",
+    title: "开源，也保持开源。",
+    body: "PhotoTend 的代码完全公开。你可以查看实现、参与改进，也可以一起探索更轻松的照片整理方式。",
+    download: "下载 Android 版",
+    github: "在 GitHub 查看源码",
+    license: "本项目采用 GNU GPLv3。分发修改版本时，也需要以相同许可证公开对应源代码。",
   },
   footer: {
     tagline: "轻松整理，留下真正重要的照片。",
     privacy: "隐私政策",
+    github: "GitHub",
     contact: "联系我们",
     copyright: "© 2026 PhotoTend",
   },

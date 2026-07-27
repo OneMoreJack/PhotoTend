@@ -14,6 +14,7 @@ export const en = {
     why: "Why PhotoTend",
     workflow: "How it works",
     platforms: "Platforms",
+    github: "GitHub",
     join: "Download for Android",
   },
   gesture: {
@@ -69,14 +70,16 @@ export const en = {
     ],
   },
   finalCta: {
-    title: "Get release updates",
-    body: "Email is completely optional. We will let you know about major releases and when macOS or iPhone becomes available.",
-    cta: "Subscribe to updates",
-    privacy: "Important release updates only. Android downloads never require an email. Unsubscribe anytime.",
+    title: "Open source, and staying that way.",
+    body: "PhotoTend is built in the open. Explore the code, learn from it, and help shape a calmer way to care for your photo library.",
+    download: "Download for Android",
+    github: "View source on GitHub",
+    license: "Licensed under GNU GPLv3. If you distribute a modified version, its source must remain available under the same license.",
   },
   footer: {
     tagline: "Organize lightly. Keep what matters.",
     privacy: "Privacy",
+    github: "GitHub",
     contact: "Contact",
     copyright: "© 2026 PhotoTend",
   },

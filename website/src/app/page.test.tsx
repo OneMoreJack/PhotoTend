@@ -10,6 +10,9 @@ describe("HomePage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "下载 Android 版" }),
-    ).toHaveAttribute("href", "/api/download/android?locale=zh-CN");
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/OneMoreJack/PhotoTend/releases/latest/download/phototend-android.apk",
+    );
   });
 });

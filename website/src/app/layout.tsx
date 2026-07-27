@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
 import type { ReactNode } from "react";
-import { isLocale } from "@/i18n/config";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,17 +18,13 @@ export const viewport: Viewport = {
   themeColor: "#F4F0E8",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const requestHeaders = await headers();
-  const localeHeader = requestHeaders.get("x-phototend-locale");
-  const locale = localeHeader && isLocale(localeHeader) ? localeHeader : "zh-CN";
-
   return (
-    <html lang={locale}>
+    <html lang="zh-CN">
       <body>{children}</body>
     </html>
   );

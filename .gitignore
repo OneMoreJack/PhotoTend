@@ -1,5 +1,6 @@
 .worktrees/
 website/.next/
+website/out/
 website/node_modules/
 website/coverage/
 website/playwright-report/

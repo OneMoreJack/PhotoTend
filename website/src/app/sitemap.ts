@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 
 const siteUrl = "https://phototend.onemorejack.top";
 
+export const dynamic = "force-static";
+
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {

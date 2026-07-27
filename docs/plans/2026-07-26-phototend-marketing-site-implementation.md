@@ -1,5 +1,17 @@
 # PhotoTend Marketing Site Implementation Plan
 
+## 2026-07-26 范围修订
+
+产品方随后确认：
+
+- 仅 Android 为当前支持并可下载的平台。
+- Android 使用 `/api/download/android` 直接获取短期签名下载地址，不要求邮箱。
+- macOS 与 iPhone 只标记 `Coming soon`。
+- 原 waitlist 调整为可选版本通知订阅，邮件不得再作为 Android 下载门槛。
+
+因此，后续发布验证只要求真实 Android 安装包；macOS/iPhone 不进入构建、上传或下载验证。
+Task 16 的真实闭环拆分为“Android 无邮箱直接下载”与“可选订阅确认/退订”两条链路。
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build and deploy a bilingual, responsive PhotoTend marketing site with a secure Supabase-backed waitlist, Resend email delivery, private release downloads, and production hosting at `phototend.onemorejack.top`.

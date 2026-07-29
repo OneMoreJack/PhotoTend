@@ -20,7 +20,7 @@ describe("MarketingPage", () => {
     expect(within(gestures).getByText("左滑")).toBeInTheDocument();
     expect(within(gestures).getByText("右滑")).toBeInTheDocument();
     expect(within(gestures).getByText("上滑")).toBeInTheDocument();
-    expect(within(gestures).getByText("下滑")).toBeInTheDocument();
+    expect(within(gestures).queryByText("下滑")).not.toBeInTheDocument();
 
     const imports = screen.getByLabelText("支持的导入来源");
     expect(within(imports).getByText("手机系统相册")).toBeInTheDocument();
@@ -87,6 +87,7 @@ describe("MarketingPage", () => {
     expect(
       screen.getAllByRole("link", { name: "View source on GitHub" }),
     ).not.toHaveLength(0);
+    expect(screen.queryByText("Swipe down")).not.toBeInTheDocument();
     expect(screen.getAllByText("Coming soon")).toHaveLength(2);
     expect(screen.getByText("Open source, and staying that way.")).toBeInTheDocument();
     expect(screen.getByText(/GNU GPLv3/)).toBeInTheDocument();

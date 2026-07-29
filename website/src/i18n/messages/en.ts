@@ -18,7 +18,7 @@ export const en = {
     join: "Download for Android",
   },
   gesture: {
-    kicker: "Four directions. No menus to learn.",
+    kicker: "Three directions. No menus to learn.",
     title: "One photo at a time. Soon, it all feels lighter.",
     body: "Turn every decision into an intuitive gesture. Everything goes to trash first, so you stay in control.",
     ariaLabel: "Photo organizing gestures",
@@ -26,7 +26,6 @@ export const en = {
       { action: "Swipe left", detail: "See a random next photo", arrow: "←" },
       { action: "Swipe right", detail: "Return to the previous photo", arrow: "→" },
       { action: "Swipe up", detail: "Move it to trash first", arrow: "↑" },
-      { action: "Swipe down", detail: "Undo the last move", arrow: "↓" },
     ],
   },
   imports: {

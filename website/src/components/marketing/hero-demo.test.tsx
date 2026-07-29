@@ -38,7 +38,7 @@ describe("HeroDemo", () => {
     expect(screen.getByRole("status")).toHaveTextContent("已切换到下一张照片");
   });
 
-  it("completes upward trash and downward undo gestures", () => {
+  it("completes upward trash and ignores a downward drag", () => {
     render(<HeroDemo locale="zh-CN" />);
     const surface = screen.getByLabelText("PhotoTend 手势操作演示");
 
@@ -74,6 +74,9 @@ describe("HeroDemo", () => {
       clientX: 180,
       clientY: 250,
     });
-    expect(screen.getByRole("status")).toHaveTextContent("已撤销刚才的操作");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "拖动照片，体验 PhotoTend 手势",
+    );
+    expect(screen.queryByText("已撤销")).not.toBeInTheDocument();
   });
 });

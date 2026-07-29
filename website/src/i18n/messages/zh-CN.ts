@@ -18,7 +18,7 @@ export const zhCN = {
     join: "下载 Android 版",
   },
   gesture: {
-    kicker: "四个方向，不用学菜单",
+    kicker: "三个方向，不用学菜单",
     title: "一张一张，轻松理好。",
     body: "把判断变成直觉动作。所有删除都先进入回收站，想清楚之后，再统一处理。",
     ariaLabel: "手势整理方式",
@@ -26,7 +26,6 @@ export const zhCN = {
       { action: "左滑", detail: "随机看看下一张", arrow: "←" },
       { action: "右滑", detail: "回到刚刚看过的照片", arrow: "→" },
       { action: "上滑", detail: "先放进回收站", arrow: "↑" },
-      { action: "下滑", detail: "撤销刚才的操作", arrow: "↓" },
     ],
   },
   imports: {

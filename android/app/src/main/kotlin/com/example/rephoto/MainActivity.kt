@@ -1159,11 +1159,13 @@ class MainActivity : FlutterActivity() {
             lastImportDebugInfo = "导入诊断：没有已保存的授权位置。"
             return null
         }
-        if (value.startsWith("volume://")) {
-            val volumeName = value.removePrefix("volume://")
+        if (value.startsWith(importVolumeRootPrefix)) {
+            val volumeName = value.removePrefix(importVolumeRootPrefix)
+            if (isImportVolumeMounted(volumeName)) {
+                return value
+            }
             externalImportPrefs.edit().remove(importRootUriKey).apply()
-            lastImportDebugInfo =
-                "导入诊断：需要重新授权储存卡根目录\nvolume=$volumeName"
+            lastImportDebugInfo = "导入诊断：储存卡未连接或未挂载\nvolume=$volumeName"
             return null
         }
         val uri = Uri.parse(value)
@@ -1223,9 +1225,21 @@ class MainActivity : FlutterActivity() {
             result.error("BUSY", "Import root picker is already open", null)
             return
         }
+        if (!rootId.isNullOrBlank()) {
+            val value = resolveDetectedImportVolumeRoot(rootId, mountedImportVolumeIds())
+            if (value == null) {
+                lastImportDebugInfo = "导入诊断：选择的储存卡未连接或未挂载\nvolume=$rootId"
+                result.success(null)
+                return
+            }
+            externalImportPrefs.edit().putString(importRootUriKey, value).apply()
+            lastImportDebugInfo = "导入诊断：已直接选择储存卡\nvolume=$rootId"
+            result.success(value)
+            return
+        }
         pendingImportRootResult = result
-        pendingImportRootId = rootId
-        val intent = buildImportRootPickerIntent(rootId).apply {
+        pendingImportRootId = null
+        val intent = buildImportRootPickerIntent().apply {
             addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
@@ -1234,13 +1248,37 @@ class MainActivity : FlutterActivity() {
             )
             putExtra("android.provider.extra.SHOW_ADVANCED", true)
         }
-        lastImportDebugInfo = if (rootId.isNullOrBlank()) {
-            "导入诊断：正在请求手动授权储存位置。"
-        } else {
-            "导入诊断：正在请求储存卡目录授权\nvolume=$rootId"
-        }
+        lastImportDebugInfo = "导入诊断：正在请求手动授权储存位置。"
         @Suppress("DEPRECATION")
         startActivityForResult(intent, requestCodeImportRoot)
+    }
+
+    private fun mountedImportVolumeIds(): Set<String> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return emptySet()
+        return try {
+            val storageManager = getSystemService(StorageManager::class.java)
+            storageManager.storageVolumes
+                .filter { volume ->
+                    volume.isRemovable && volume.state == Environment.MEDIA_MOUNTED
+                }
+                .flatMap { volume ->
+                    buildList {
+                        volume.uuid?.takeIf { it.isNotBlank() }?.let(::add)
+                        volume.getDescription(this@MainActivity)
+                            .takeIf { it.isNotBlank() }
+                            ?.let(::add)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            volume.mediaStoreVolumeName
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let(::add)
+                        }
+                    }
+                }
+                .toSet()
+        } catch (error: Exception) {
+            Log.w(logTag, "Unable to resolve mounted removable storage ids", error)
+            emptySet()
+        }
     }
 
     private fun buildImportRootPickerIntent(rootId: String? = null): Intent {
@@ -1408,16 +1446,10 @@ class MainActivity : FlutterActivity() {
             }
         }
         val merged = mergeImportItems(items, emptyList())
-            .sortedByDescending { it.createdAtMillis }
-        val end = (safeOffset + safeLimit).coerceAtMost(merged.size)
-        val pageItems = if (safeOffset >= merged.size) {
-            emptyList()
-        } else {
-            merged.subList(safeOffset, end)
-        }
+        val page = buildExternalImportPage(merged, safeOffset, safeLimit)
         return mapOf(
-            "items" to pageItems.map { it.toMap() },
-            "hasMore" to (merged.size > end),
+            "items" to page.items.map { it.toMap() },
+            "hasMore" to page.hasMore,
         )
     }
 
@@ -2582,14 +2614,14 @@ class MainActivity : FlutterActivity() {
     }
 
     private data class NativeExternalImportItem(
-        val id: String,
+        override val id: String,
         val type: String,
         val displayName: String,
-        val createdAtMillis: Long,
+        override val createdAtMillis: Long,
         val sizeBytes: Long?,
         val pathOrUri: String,
         val imported: Boolean,
-    ) {
+    ) : ExternalImportPageItem {
         fun toMap(): Map<String, Any?> {
             return mapOf(
                 "id" to id,

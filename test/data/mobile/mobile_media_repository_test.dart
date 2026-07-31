@@ -374,6 +374,26 @@ void main() {
     expect((calls[7].arguments as Map)['sourceUri'], items.single.pathOrUri);
   });
 
+  test('external import repository omits root id for manual selection', () async {
+    const channel = MethodChannelExternalImportRepository.channel;
+    MethodCall? requestCall;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'requestImportRoot') {
+            requestCall = call;
+            return 'content://tree/manual';
+          }
+          return null;
+        });
+
+    final repo = MethodChannelExternalImportRepository();
+    final root = await repo.requestImportRoot();
+
+    expect(root, 'content://tree/manual');
+    expect(requestCall, isNotNull);
+    expect((requestCall!.arguments as Map), isNot(contains('rootId')));
+  });
+
   test(
     'external import repository omits album name for system library',
     () async {

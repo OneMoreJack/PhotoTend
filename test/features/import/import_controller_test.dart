@@ -169,6 +169,18 @@ void main() {
     },
   );
 
+  test('controller refresh replaces stale scan with newly added photo', () async {
+    final repo = RefreshingFakeExternalImportRepository();
+    final controller = ImportController(repository: repo);
+
+    await controller.refresh();
+    expect(controller.items.map((item) => item.id), ['june-14']);
+
+    await controller.refresh();
+
+    expect(controller.items.map((item) => item.id), ['new-photo', 'june-14']);
+  });
+
   test(
     'controller exposes missing card state when no root is available',
     () async {
@@ -512,6 +524,43 @@ class PagingFakeExternalImportRepository extends FakeExternalImportRepository {
       limit: limit,
       includeRaw: includeRaw,
     );
+  }
+}
+
+class RefreshingFakeExternalImportRepository
+    extends FakeExternalImportRepository {
+  RefreshingFakeExternalImportRepository() : super(const <ExternalImportItem>[]);
+
+  var scanCount = 0;
+
+  @override
+  Future<ExternalImportScanPage> scanImportRootPage({
+    required int offset,
+    required int limit,
+    bool includeRaw = false,
+  }) async {
+    if (offset > 0) {
+      return const ExternalImportScanPage(items: [], hasMore: false);
+    }
+    scanCount += 1;
+    final items = <ExternalImportItem>[
+      ExternalImportItem(
+        id: 'june-14',
+        type: MediaType.photo,
+        displayName: 'june-14.jpg',
+        pathOrUri: 'content://doc/june-14',
+        createdAt: DateTime(2026, 6, 14),
+      ),
+      if (scanCount > 1)
+        ExternalImportItem(
+          id: 'new-photo',
+          type: MediaType.photo,
+          displayName: 'new-photo.jpg',
+          pathOrUri: 'content://doc/new-photo',
+          createdAt: DateTime(2026, 7, 29),
+        ),
+    ];
+    return ExternalImportScanPage(items: items, hasMore: false);
   }
 }
 

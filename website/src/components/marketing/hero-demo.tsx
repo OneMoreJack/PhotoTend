@@ -4,7 +4,7 @@ import type { Locale } from "@/i18n/config";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
-type Action = "idle" | "next" | "trash" | "undo";
+type Action = "idle" | "next" | "trash";
 
 const scenes = [
   {
@@ -36,20 +36,16 @@ const statusCopy = {
     idle: "拖动照片，体验 PhotoTend 手势",
     next: "已切换到下一张照片",
     trash: "已移入回收站",
-    undo: "已撤销刚才的操作",
     hint: "拖动试试",
     trashLabel: "回收站",
-    undoLabel: "已撤销",
   },
   en: {
     label: "Interactive PhotoTend gesture demo",
     idle: "Drag the photo to try PhotoTend gestures",
     next: "Moved to the next photo",
     trash: "Moved to trash",
-    undo: "Last action undone",
     hint: "Try dragging",
     trashLabel: "Trash",
-    undoLabel: "Undone",
   },
 } as const;
 
@@ -88,7 +84,7 @@ export function HeroDemo({ locale }: { locale: Locale }) {
     const timer = window.setInterval(() => {
       if (dragging || Date.now() < interactionPauseUntil.current) return;
 
-      const sequence: Action[] = ["next", "trash", "undo"];
+      const sequence: Action[] = ["next", "trash"];
       const nextAction = sequence[autoStep.current % sequence.length]!;
       autoStep.current += 1;
       completeAction(nextAction);
@@ -102,8 +98,6 @@ export function HeroDemo({ locale }: { locale: Locale }) {
     setOffset({ x: 0, y: 0 });
     if (nextAction === "next") {
       setSceneIndex((current) => (current + 1) % scenes.length);
-    } else if (nextAction === "undo") {
-      setSceneIndex((current) => (current - 1 + scenes.length) % scenes.length);
     }
   }
 
@@ -144,8 +138,6 @@ export function HeroDemo({ locale }: { locale: Locale }) {
       completeAction("next");
     } else if (y <= -threshold) {
       completeAction("trash");
-    } else if (y >= threshold) {
-      completeAction("undo");
     } else {
       setAction("idle");
       setOffset({ x: 0, y: 0 });
@@ -221,7 +213,6 @@ export function HeroDemo({ locale }: { locale: Locale }) {
         <div className="hero-demo__controls" aria-hidden="true">
           <span>←</span>
           <span>↑</span>
-          <span>↓</span>
           <span>→</span>
         </div>
         <div className="hero-demo__thumbs" aria-hidden="true">
@@ -236,13 +227,6 @@ export function HeroDemo({ locale }: { locale: Locale }) {
       </div>
       <div className="hero-demo__hint" aria-hidden="true">
         {copy.hint} <span>↗</span>
-      </div>
-      <div
-        className="hero-demo__undo"
-        data-visible={action === "undo" ? "true" : "false"}
-        aria-hidden="true"
-      >
-        {copy.undoLabel}
       </div>
       <p className="sr-only" role="status" aria-live="polite">
         {copy[action]}

@@ -20,7 +20,7 @@ describe("MarketingPage", () => {
     expect(within(gestures).getByText("左滑")).toBeInTheDocument();
     expect(within(gestures).getByText("右滑")).toBeInTheDocument();
     expect(within(gestures).getByText("上滑")).toBeInTheDocument();
-    expect(within(gestures).getByText("下滑")).toBeInTheDocument();
+    expect(within(gestures).queryByText("下滑")).not.toBeInTheDocument();
 
     const imports = screen.getByLabelText("支持的导入来源");
     expect(within(imports).getByText("手机系统相册")).toBeInTheDocument();
@@ -41,11 +41,14 @@ describe("MarketingPage", () => {
     const downloadLinks = screen.getAllByRole("link", {
       name: "下载 Android 版",
     });
-    expect(downloadLinks).toHaveLength(2);
+    expect(downloadLinks).toHaveLength(3);
     expect(downloadLinks[0]).toHaveAttribute(
       "href",
-      "/api/download/android?locale=zh-CN",
+      "https://github.com/OneMoreJack/PhotoTend/releases/latest/download/phototend-android.apk",
     );
+    expect(
+      screen.getAllByRole("link", { name: "在 GitHub 查看源码" }),
+    ).not.toHaveLength(0);
     const platformSection = screen
       .getByRole("heading", { name: "在熟悉的设备上开始。" })
       .closest("section");
@@ -54,7 +57,10 @@ describe("MarketingPage", () => {
     expect(within(platformSection!).getByText("macOS")).toBeInTheDocument();
     expect(within(platformSection!).getByText("iPhone")).toBeInTheDocument();
     expect(within(platformSection!).getAllByText("Coming soon")).toHaveLength(2);
-    expect(screen.getByText("订阅版本通知")).toBeInTheDocument();
+    expect(screen.getByText("开源，也保持开源。")).toBeInTheDocument();
+    expect(screen.getByText(/GNU GPLv3/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /邮箱/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("订阅版本通知")).not.toBeInTheDocument();
   });
 
   it("presents the complete English product story", async () => {
@@ -77,8 +83,15 @@ describe("MarketingPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getAllByRole("link", { name: "Download for Android" }),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
+    expect(
+      screen.getAllByRole("link", { name: "View source on GitHub" }),
+    ).not.toHaveLength(0);
+    expect(screen.queryByText("Swipe down")).not.toBeInTheDocument();
     expect(screen.getAllByText("Coming soon")).toHaveLength(2);
-    expect(screen.getByText("Get release updates")).toBeInTheDocument();
+    expect(screen.getByText("Open source, and staying that way.")).toBeInTheDocument();
+    expect(screen.getByText(/GNU GPLv3/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /email/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Get release updates")).not.toBeInTheDocument();
   });
 });

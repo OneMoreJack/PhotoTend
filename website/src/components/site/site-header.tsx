@@ -3,6 +3,7 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import type { Locale } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
 import Link from "next/link";
+import { androidDownloadUrl, githubRepositoryUrl } from "@/lib/links";
 
 export function SiteHeader({ locale }: { locale: Locale }) {
   const { nav } = getMessages(locale);
@@ -15,12 +16,13 @@ export function SiteHeader({ locale }: { locale: Locale }) {
           <Link href={`/${locale}#why`}>{nav.why}</Link>
           <Link href={`/${locale}#workflow`}>{nav.workflow}</Link>
           <Link href={`/${locale}#platforms`}>{nav.platforms}</Link>
+          <a href={githubRepositoryUrl}>{nav.github}</a>
         </nav>
         <div className="site-header__actions">
           <LocaleSwitcher locale={locale} />
           <Link
             className="button button--compact"
-            href={`/api/download/android?locale=${locale}`}
+            href={androidDownloadUrl}
           >
             {nav.join}
           </Link>

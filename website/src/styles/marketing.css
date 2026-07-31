@@ -362,8 +362,7 @@
   opacity: 1;
 }
 
-.hero-demo__hint,
-.hero-demo__undo {
+.hero-demo__hint {
   position: absolute;
   z-index: 4;
   padding: var(--space-3) var(--space-4);
@@ -385,31 +384,12 @@
   margin-left: var(--space-1);
 }
 
-.hero-demo__undo {
-  right: 0;
-  bottom: 5rem;
-  transform: rotate(6deg);
-  background: var(--color-surface);
-  color: var(--color-accent-deep);
-  box-shadow: 0 0 0 1px var(--color-line);
-}
-
-.hero-demo__undo[data-visible="false"] {
-  transform: translateY(0.75rem) rotate(6deg);
-  visibility: hidden;
-  opacity: 0;
-}
-
 .hero-demo__phone[data-action="next"] .hero-demo__card {
   animation: hero-swipe-left 680ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .hero-demo__phone[data-action="trash"] .hero-demo__card {
   animation: hero-swipe-up 680ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.hero-demo__phone[data-action="undo"] .hero-demo__card {
-  animation: hero-undo 680ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .sr-only {
@@ -455,18 +435,6 @@
   100% {
     transform: translate3d(0, 0, 0);
     opacity: 1;
-  }
-}
-
-@keyframes hero-undo {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-  45% {
-    transform: translate3d(0, 16%, 0);
-  }
-  100% {
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -779,155 +747,27 @@
   gap: var(--space-5);
 }
 
+.final-cta__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.final-cta__buttons .button {
+  flex: 1 1 13rem;
+}
+
+.button--outline-light {
+  border: 1px solid rgb(255 255 255 / 65%);
+  background: transparent;
+  color: var(--color-surface);
+}
+
 .final-cta small {
   max-width: 30rem;
   color: var(--color-surface);
   font-size: 0.72rem;
   line-height: 1.5;
-}
-
-.waitlist-form {
-  width: 100%;
-  display: grid;
-  gap: clamp(1.5rem, 3vw, 2.25rem);
-}
-
-.waitlist-form__group {
-  min-width: 0;
-}
-
-.waitlist-form__submit {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.waitlist-form__field,
-.waitlist-form fieldset {
-  min-width: 0;
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.waitlist-form label,
-.waitlist-form legend {
-  color: var(--color-surface);
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.waitlist-form input[type="email"] {
-  width: 100%;
-  min-height: 3.25rem;
-  padding: 0 var(--space-4);
-  border: 1px solid #e8a987;
-  border-radius: var(--radius-sm);
-  background: #a94725;
-  color: var(--color-surface);
-  font: inherit;
-}
-
-.waitlist-form input[type="email"]::placeholder {
-  color: #f7d7c4;
-}
-
-.waitlist-form input[type="email"]:focus-visible,
-.platform-options input:focus-visible + span,
-.consent-field input:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--color-accent), 0 0 0 6px var(--color-surface);
-}
-
-.waitlist-form input[aria-invalid="true"] {
-  border-color: var(--color-surface);
-}
-
-.platform-options {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-3);
-}
-
-.platform-options label {
-  cursor: pointer;
-}
-
-.platform-options input {
-  position: absolute;
-  opacity: 0;
-}
-
-.platform-options span {
-  min-height: 3rem;
-  display: grid;
-  place-items: center;
-  border: 1px solid #e8a987;
-  border-radius: var(--radius-sm);
-  color: var(--color-surface);
-}
-
-.platform-options input:checked + span {
-  border-color: var(--color-surface);
-  background: var(--color-surface);
-  color: var(--color-accent-deep);
-}
-
-.consent-field {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 3.75rem;
-  padding: var(--space-3) var(--space-4);
-  border-block: 1px solid rgb(255 255 255 / 28%);
-  cursor: pointer;
-}
-
-.consent-field input {
-  width: 1.25rem;
-  height: 1.25rem;
-  margin: 0;
-  accent-color: var(--color-surface);
-}
-
-.consent-field span {
-  color: var(--color-surface);
-  font-size: 0.72rem;
-  font-weight: 500;
-  line-height: 1.55;
-}
-
-.waitlist-form .button {
-  width: 100%;
-}
-
-.waitlist-form .button:disabled {
-  cursor: not-allowed;
-  background: #d58b66;
-  color: #f6d9c8;
-}
-
-.waitlist-form__error,
-.waitlist-form__status {
-  color: var(--color-surface);
-  font-size: 0.76rem;
-  line-height: 1.5;
-}
-
-.website-field {
-  position: absolute;
-  left: -10000px;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-}
-
-@media (min-width: 32rem) {
-  .platform-options {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 .site-footer {

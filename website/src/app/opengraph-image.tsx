@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 
+export const dynamic = "force-static";
 export const alt = "理好相册 PhotoTend — 轻松整理，留下真正重要的照片";
 export const size = {
   width: 1200,

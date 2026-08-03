@@ -17,4 +17,10 @@ void main() {
       isNot(contains('signingConfig = signingConfigs.getByName("debug")')),
     );
   });
+
+  test('Android release version advances beyond the first public build', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+
+    expect(pubspec, contains('version: 1.0.1+2'));
+  });
 }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import "../styles/marketing.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://phototend.onemorejack.top"),
